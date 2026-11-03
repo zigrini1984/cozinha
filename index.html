@@ -313,6 +313,7 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
     <label style="grid-column:span 3">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
   </div>
   <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button><button class="pill forte" id="micTeste">🎙️ Testar microfone</button></div>
+  <form class="acoes" id="perguntaTeste" autocomplete="off" style="margin-top:12px"><input id="perguntaTx" placeholder="Teste sem microfone: digite uma pergunta (ex.: que horas são?)" style="flex:1;min-width:260px"><button class="pill">Perguntar</button></form>
   <div class="acoes" style="margin-top:12px;align-items:center"><b style="font-size:14px;color:var(--soft)">Passar do PC para o tablet:</b><button class="pill forte" id="codGerar">💻 No PC: gerar código</button><button class="pill forte" id="codDigitar">📱 No tablet: digitar código</button><button class="pill" id="qrMostrar">Mostrar QR</button><button class="pill" id="qrLer">Ler QR</button></div>
 </div>
 <div id="qrBox" style="position:fixed;inset:0;z-index:45;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px;overflow:auto">
@@ -474,7 +475,60 @@ let micStream = null;
 async function mic() {
   if (micStream && micStream.active) return micStream;
   micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const t = micStream.getAudioTracks()[0];
+  if (t) { t.onmute = () => diag("microfone_mudo_pelo_sistema"); t.onunmute = () => diag("microfone_voltou"); t.onended = () => diag("microfone_encerrado"); }
   return micStream;
+}
+
+// ================= Diagnóstico remoto =================
+// Eventos técnicos vão para a aba "diagnostico" da planilha da família, para investigar problemas do tablet de longe.
+const diagFila = [];
+function diag(evento, dados = {}) {
+  console.log("[diag]", evento, dados);
+  diagFila.push({ evento, dados: Object.assign({ hora: new Date().toLocaleTimeString("pt-BR") }, dados) });
+  clearTimeout(diag._t); diag._t = setTimeout(enviarDiag, 2500);
+}
+async function enviarDiag() {
+  if (!cfg.scriptUrl || !cfg.scriptToken || !diagFila.length) return;
+  const linhas = diagFila.splice(0, 40);
+  try { await fetch(cfg.scriptUrl, { method: "POST", body: JSON.stringify({ token: cfg.scriptToken, acao: "log", aparelho: navigator.userAgent, linhas }) }); } catch {}
+}
+// Mede se o áudio do microfone chega por dois caminhos: Web Audio (usado pelo painel) e MediaRecorder (alternativo)
+async function sondarAudio(segundos = 3) {
+  const r = {};
+  try {
+    const s = await mic(), t = s.getAudioTracks()[0], c = audioCtx();
+    if (c.state === "suspended") await c.resume();
+    r.trilha = { label: t.label, muted: t.muted, enabled: t.enabled, estado: t.readyState, ajustes: t.getSettings ? t.getSettings() : null };
+    r.contexto = { estado: c.state, taxa: c.sampleRate, latencia: c.baseLatency };
+    // Caminho 1: Web Audio
+    const src = c.createMediaStreamSource(s), an = c.createAnalyser(), proc = c.createScriptProcessor(4096, 1, 1);
+    let chamadas = 0, maxProc = 0, maxAn = 0; const buf = new Float32Array(2048); an.fftSize = 2048;
+    proc.onaudioprocess = e => { chamadas++; const d = e.inputBuffer.getChannelData(0); for (let i = 0; i < d.length; i += 4) maxProc = Math.max(maxProc, Math.abs(d[i])); };
+    src.connect(an); src.connect(proc); proc.connect(c.destination);
+    const iv = setInterval(() => { an.getFloatTimeDomainData(buf); for (const v of buf) maxAn = Math.max(maxAn, Math.abs(v)); }, 100);
+    // Caminho 2: MediaRecorder em paralelo
+    let gravado = null;
+    if (window.MediaRecorder) {
+      const partes = [], rec = new MediaRecorder(s);
+      rec.ondataavailable = e => partes.push(e.data);
+      const fim = new Promise(ok => rec.onstop = ok);
+      rec.start(); setTimeout(() => rec.stop(), segundos * 1000);
+      await fim; gravado = new Blob(partes, { type: rec.mimeType });
+    } else await new Promise(ok => setTimeout(ok, segundos * 1000));
+    clearInterval(iv); proc.disconnect(); src.disconnect();
+    r.webaudio = { chamadas, picoProcessador: +maxProc.toFixed(4), picoAnalisador: +maxAn.toFixed(4) };
+    if (gravado) {
+      r.mediarecorder = { tipo: gravado.type, bytes: gravado.size };
+      try {
+        const ab = await gravado.arrayBuffer(), dec = await c.decodeAudioData(ab), d = dec.getChannelData(0);
+        let m = 0; for (let i = 0; i < d.length; i += 4) m = Math.max(m, Math.abs(d[i]));
+        r.mediarecorder.pico = +m.toFixed(4); r.mediarecorder.segundos = +dec.duration.toFixed(2);
+      } catch (e) { r.mediarecorder.erroDecodificar = String(e.message || e); }
+    }
+  } catch (e) { r.erro = (e.name || "") + " " + (e.message || e); }
+  diag("sonda_audio", r);
+  return r;
 }
 // Grava até ~1.3 s de silêncio depois da fala; devolve WAV 16 kHz em base64, ou null se ninguém falou
 async function gravarFala(esperaMax = 6) {
@@ -492,8 +546,11 @@ async function gravarFala(esperaMax = 6) {
       if (el < 0.35) { ruido += rms; nRuido++; return; }
       const lim = Math.max(0.012, (ruido / Math.max(1, nRuido)) * 2.6);
       if (rms > lim) { falou = true; silencio = 0; } else silencio += dt;
-      if ((falou && silencio > 1.3) || el > 20 || (!falou && el > esperaMax)) {
+      gravarFala.pico = Math.max(gravarFala.pico || 0, rms); gravarFala.lim = lim;
+      if ((falou && silencio > 1.3) || el > 12 || (!falou && el > esperaMax)) {
         proc.disconnect(); src.disconnect(); bola.style.transform = "";
+        diag("gravacao", { segundos: +el.toFixed(1), falou, picoRms: +(gravarFala.pico || 0).toFixed(4), limiar: +lim.toFixed(4), ruido: +(ruido / Math.max(1, nRuido)).toFixed(4) });
+        gravarFala.pico = 0;
         res(falou ? wavBase64(blocos, c.sampleRate) : null);
       }
     };
@@ -1084,10 +1141,19 @@ function mostrarAba(aba) { abaAtual = aba; document.querySelectorAll(".abas butt
 // ================= Gemini =================
 async function gemini(corpo) {
   if (!cfg.geminiKey) throw new Error("Falta a chave do Gemini nas configurações ⚙️");
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.modelo)}:generateContent`, {
-    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey }, body: JSON.stringify(corpo)
-  });
+  // Sem resposta em 45 s, desiste com erro em vez de ficar "pensando" para sempre
+  const ctrl = new AbortController(), limite = setTimeout(() => ctrl.abort(), 45000), t0 = performance.now();
+  let r;
+  try {
+    r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.modelo)}:generateContent`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey }, body: JSON.stringify(corpo), signal: ctrl.signal
+    });
+  } catch (e) {
+    diag("gemini_falhou", { erro: e.name === "AbortError" ? "sem resposta em 45 s" : String(e.message || e), modelo: cfg.modelo });
+    throw new Error(e.name === "AbortError" ? "O Gemini não respondeu. Confira a internet do tablet." : "Sem conexão com o Gemini.");
+  } finally { clearTimeout(limite); }
   const j = await r.json().catch(() => ({}));
+  diag("gemini", { status: r.status, ms: Math.round(performance.now() - t0), modelo: cfg.modelo, erro: j.error ? j.error.message : undefined });
   if (!r.ok) throw new Error(j.error?.message || `Gemini respondeu ${r.status}`);
   return j;
 }
@@ -1194,7 +1260,7 @@ async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false
     mostrarAssist("falando", undefined, resp);
     await falar(resp);
   } catch (e) {
-    console.error(e); resp = ""; mostrarAssist("falando", undefined, "Ops: " + (e.message || e)); toast(e.message || String(e));
+    console.error(e); diag("erro_conversa", { erro: String(e.message || e) }); resp = ""; mostrarAssist("falando", undefined, "Ops: " + (e.message || e)); toast(e.message || String(e));
   } finally {
     setEstado("ocioso"); ocupado = false;
     // Interrompida com "Jarvis" no meio da fala: escuta o novo pedido
@@ -1234,6 +1300,11 @@ function owwZerar() {
 }
 // Recebe 1280 amostras (16 kHz, escala de int16) e devolve a pontuação de 0 a 1
 async function owwBloco(bloco) {
+  const t0 = performance.now();
+  try { return await owwBlocoInterno(bloco); }
+  finally { const ms = performance.now() - t0; OWW.msMedio = OWW.msMedio ? OWW.msMedio * 0.95 + ms * 0.05 : ms; }
+}
+async function owwBlocoInterno(bloco) {
   const juntos = new Float32Array(OWW.raw.length + bloco.length); juntos.set(OWW.raw); juntos.set(bloco, OWW.raw.length);
   OWW.raw = juntos.slice(-(BLOCO + 480));
   if (OWW.raw.length < BLOCO + 480) return 0;
@@ -1279,9 +1350,16 @@ async function iniciarWake() {
   if (cfg.wake === "oww") {
     try {
       $("#dica").textContent = "Carregando o \"Ei, Jarvis\"…";
+      const t0 = performance.now();
       await carregarOWW(); await escutarOWW();
+      diag("ei_jarvis_carregado", { ms: Math.round(performance.now() - t0) });
       $("#dica").textContent = 'Diga "Ei, Jarvis" ou toque →';
-    } catch (e) { console.error(e); toast("A palavra de ativação falhou: " + (e.message || e), 9000); $("#dica").textContent = "Toque para falar →"; }
+      // Durante 3 minutos, registra se o tablet dá conta de analisar o áudio em tempo real
+      let n = 0; const iv = setInterval(() => {
+        diag("ei_jarvis_status", { analisados: OWW.processados || 0, descartados: OWW.descartados || 0, maiorPontuacao: +(OWW.pico || 0).toFixed(3), msPorBloco: OWW.msMedio ? +OWW.msMedio.toFixed(1) : null });
+        OWW.pico = 0; if (++n >= 6) clearInterval(iv);
+      }, 30000);
+    } catch (e) { console.error(e); diag("ei_jarvis_falhou", { erro: String(e.message || e) }); toast("A palavra de ativação falhou: " + (e.message || e), 9000); $("#dica").textContent = "Toque para falar →"; }
   } else if (cfg.wake === "navegador") {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast("Este navegador não reconhece voz."); return; }
@@ -1319,7 +1397,12 @@ function avisoMicrofone(e) {
     negado ? "Toque no cadeado ao lado do endereço → Permissões → Microfone → Permitir. Depois recarregue a página."
            : "Erro: " + (e && (e.name || e.message)) + ". Confira se outro app está usando o microfone e recarregue a página.");
 }
+$("#perguntaTeste").onsubmit = e => {
+  e.preventDefault(); const t = $("#perguntaTx").value.trim(); if (!t) return;
+  $("#perguntaTx").value = ""; $("#cfg").classList.remove("on"); interagir(t);
+};
 $("#micTeste").onclick = async () => {
+  setTimeout(() => sondarAudio(4), 500);
   abrirQr("Teste do microfone", "Fale normalmente perto do tablet. A barra deve se mexer com a sua voz. Diga \"Ei, Jarvis\" para ver a pontuação.");
   $("#qrArea").innerHTML = `<div style="width:min(560px,85vw);text-align:left;font-weight:700;color:var(--ink)">
     <div>Volume</div><div style="height:22px;background:var(--line);border-radius:11px;overflow:hidden;margin:6px 0 14px"><div id="tVol" style="height:100%;width:0;background:var(--salvia);transition:width .08s"></div></div>
@@ -1468,9 +1551,10 @@ $("#btnIniciar").onclick = async () => {
   await audioCtx().resume(); manterTela(); carregarVozes();
   // Pede o microfone logo no primeiro toque, mesmo antes de configurar, para a permissão aparecer
   let micOk = true;
-  try { await mic(); } catch (e) { micOk = false; avisoMicrofone(e); }
+  try { await mic(); } catch (e) { micOk = false; avisoMicrofone(e); diag("microfone_negado", { erro: (e.name || "") + " " + (e.message || "") }); }
+  diag("inicio", { tela: `${screen.width}x${screen.height}`, versao: "2026-11-03b", wake: cfg.wake, modelo: cfg.modelo, micOk });
   if (!cfg.geminiKey) { abrirCfg(); toast("Configure ou digite o código do PC para começar.", 8000); return; }
-  if (micOk) await iniciarWake();
+  if (micOk) { sondarAudio(3); await iniciarWake(); }
   anunciar(`${periodo()}${cfg.familia ? ", família " + cfg.familia : ""}! Tudo pronto por aqui.`);
 };
 
