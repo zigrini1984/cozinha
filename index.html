@@ -1559,6 +1559,21 @@ function importarConfig(texto) {
   return true;
 }
 
+// ================= Atualização automática =================
+// O GitHub Pages e o app instalado guardam a página em cache; a cada 15 min confere se há versão nova
+// e recarrega sozinho quando ninguém estiver usando.
+const VERSAO = "2026-11-03d";
+let versaoNova = false;
+async function conferirVersao() {
+  try {
+    const h = await (await fetch("index.html?v=" + Date.now(), { cache: "no-store" })).text();
+    const m = h.match(/const VERSAO = "([^"]+)"/);
+    if (m && m[1] !== VERSAO) { versaoNova = true; diag("versao_nova", { de: VERSAO, para: m[1] }); }
+  } catch {}
+  if (versaoNova && estado === "ocioso" && !ocupado && !alarmeLoop && !receita && !timers.length) location.reload();
+}
+setInterval(conferirVersao, 15 * 60000); setTimeout(conferirVersao, 20000);
+
 // ================= Início =================
 async function manterTela() { try { await navigator.wakeLock.request("screen"); } catch {} }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { manterTela(); puxarDados(); } });
@@ -1570,7 +1585,7 @@ $("#btnIniciar").onclick = async () => {
   // Pede o microfone logo no primeiro toque, mesmo antes de configurar, para a permissão aparecer
   let micOk = true;
   try { await mic(); } catch (e) { micOk = false; avisoMicrofone(e); diag("microfone_negado", { erro: (e.name || "") + " " + (e.message || "") }); }
-  diag("inicio", { tela: `${screen.width}x${screen.height}`, versao: "2026-11-03c", wake: cfg.wake, modelo: cfg.modelo, micOk });
+  diag("inicio", { tela: `${screen.width}x${screen.height}`, versao: VERSAO, wake: cfg.wake, modelo: cfg.modelo, micOk });
   if (!cfg.geminiKey) { abrirCfg(); toast("Configure ou digite o código do PC para começar.", 8000); return; }
   if (micOk) { sondarAudio(3); await iniciarWake(); }
   anunciar(`${periodo()}${cfg.familia ? ", família " + cfg.familia : ""}! Tudo pronto por aqui.`);
