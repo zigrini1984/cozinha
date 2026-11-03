@@ -1255,6 +1255,28 @@ function mostrarAssist(e, disse, resp) {
 }
 function esconderAssist(ms) { clearTimeout(esconderAssist._t); esconderAssist._t = setTimeout(() => { if (estado === "ocioso") $("#assist").classList.remove("on"); }, ms); }
 
+// Reconhecimento de fala do próprio Chrome (rápido, em português). Devolve { texto, erro }.
+const SRClasse = window.SpeechRecognition || window.webkitSpeechRecognition;
+let srFalhou = false;
+function reconhecerFala(esperaMax) {
+  return new Promise(res => {
+    const r = new SRClasse(); r.lang = "pt-BR"; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+    let final = "", parcial = "", fim = false, ouviu = false;
+    const acabar = v => { if (fim) return; fim = true; clearTimeout(t1); clearTimeout(t2); try { r.abort(); } catch {} res(v); };
+    const t1 = setTimeout(() => { if (!ouviu) acabar({ texto: null }); }, esperaMax * 1000);
+    const t2 = setTimeout(() => acabar({ texto: (final || parcial).trim() || null }), 15000);
+    r.onspeechstart = () => { ouviu = true; };
+    r.onresult = e => {
+      ouviu = true; parcial = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) { const tx = e.results[i][0].transcript; if (e.results[i].isFinal) final += tx; else parcial += tx; }
+      $("#voceDisse").textContent = (final + parcial).trim();
+    };
+    r.onerror = e => acabar({ erro: e.error, texto: (final || parcial).trim() || null });
+    r.onend = () => acabar({ texto: (final || parcial).trim() || null });
+    try { r.start(); } catch (e) { acabar({ erro: "nao-iniciou" }); }
+  });
+}
+
 let ocupado = false;
 async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false) {
   if (ocupado) return; ocupado = true; interagir.reabrir = false;
@@ -1268,10 +1290,26 @@ async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false
     else {
       mostrarAssist("ouvindo", seguimento ? "Pode responder…" : "", ""); som.ouvir(); radioDuck(true);
       // Depois de interromper algo, espera menos: se ninguém falar, era só para silenciar
-      const wav = await gravarFala(seguimento ? 7 : interrompeu ? 4 : 6); radioDuck(false);
-      if (!wav) { setEstado("ocioso"); esconderAssist(800); return; }
-      som.ok(); partes = [{ inlineData: { mimeType: "audio/wav", data: wav } }, { text: "(mensagem de voz)" }];
-      mostrarAssist("pensando", "", "");
+      const espera = seguimento ? 7 : interrompeu ? 4 : 6;
+      // Caminho rápido: o Chrome transcreve a fala e o Gemini recebe só texto (áudio direto no Gemini leva 10 s ou mais)
+      let usarAudio = !SRClasse || srFalhou, texto = null;
+      if (!usarAudio) {
+        const r = await reconhecerFala(espera);
+        diag("reconhecimento", { texto: r.texto, erro: r.erro });
+        if (r.erro && !["no-speech", "aborted"].includes(r.erro) && !r.texto) { srFalhou = true; usarAudio = true; }
+        else texto = r.texto;
+      }
+      if (usarAudio) {
+        const wav = await gravarFala(espera); radioDuck(false);
+        if (!wav) { setEstado("ocioso"); esconderAssist(800); return; }
+        som.ok(); partes = [{ inlineData: { mimeType: "audio/wav", data: wav } }, { text: "(mensagem de voz)" }];
+        mostrarAssist("pensando", "", "");
+      } else {
+        radioDuck(false);
+        if (!texto) { setEstado("ocioso"); esconderAssist(800); return; }
+        som.ok(); partes = [{ text: texto }];
+        mostrarAssist("pensando", `"${texto}"`, "");
+      }
     }
     resp = await conversar(partes);
     if (!resp) { som.ok(); return; }
@@ -1562,7 +1600,7 @@ function importarConfig(texto) {
 // ================= Atualização automática =================
 // O GitHub Pages e o app instalado guardam a página em cache; a cada 15 min confere se há versão nova
 // e recarrega sozinho quando ninguém estiver usando.
-const VERSAO = "2026-11-03d";
+const VERSAO = "2026-11-03e";
 let versaoNova = false;
 async function conferirVersao() {
   try {
