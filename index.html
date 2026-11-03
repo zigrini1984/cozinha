@@ -312,7 +312,7 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
     <label>Cidade<input id="c_cidade"></label>
     <label style="grid-column:span 3">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
   </div>
-  <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button></div>
+  <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button><button class="pill forte" id="micTeste">🎙️ Testar microfone</button></div>
   <div class="acoes" style="margin-top:12px;align-items:center"><b style="font-size:14px;color:var(--soft)">Passar do PC para o tablet:</b><button class="pill forte" id="codGerar">💻 No PC: gerar código</button><button class="pill forte" id="codDigitar">📱 No tablet: digitar código</button><button class="pill" id="qrMostrar">Mostrar QR</button><button class="pill" id="qrLer">Ler QR</button></div>
 </div>
 <div id="qrBox" style="position:fixed;inset:0;z-index:45;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px;overflow:auto">
@@ -1264,10 +1264,11 @@ async function escutarOWW() {
     pos -= d.length;
     while (acum.length >= BLOCO) {
       const bloco = Float32Array.from(acum.splice(0, BLOCO));
-      if (OWW.pendentes > 6) continue; // aparelho lento: descarta para não acumular atraso
+      if (OWW.pendentes > 6) { OWW.descartados = (OWW.descartados || 0) + 1; continue; } // aparelho lento: descarta para não acumular atraso
       OWW.pendentes++;
       OWW.fila = OWW.fila.then(() => owwBloco(bloco)).then(score => {
-        OWW.pendentes--;
+        OWW.pendentes--; OWW.score = score; OWW.processados = (OWW.processados || 0) + 1;
+        if (score > (OWW.pico || 0)) OWW.pico = score;
         if (score >= (Number(cfg.sens) || 0.5) && performance.now() - OWW.ultimo > 2500) { OWW.ultimo = performance.now(); owwZerar(); aoOuvirPalavra(); }
       }).catch(err => { OWW.pendentes--; console.warn("oww", err); });
     }
@@ -1310,6 +1311,49 @@ $("#cfgSalvar").onclick = () => {
 };
 $("#cfgGeo").onclick = () => navigator.geolocation.getCurrentPosition(p => { $("#c_lat").value = p.coords.latitude.toFixed(4); $("#c_lon").value = p.coords.longitude.toFixed(4); }, () => toast("Não consegui ler a localização."));
 $("#cfgTeste").onclick = () => { cfg.voz = $("#c_voz").value; cfg.vel = Number($("#c_vel").value); falar(`Olá${cfg.familia ? ", família " + cfg.familia : ""}! Estou pronta para ajudar na cozinha.`); };
+
+// ================= Microfone: permissão e teste =================
+function avisoMicrofone(e) {
+  const negado = e && /NotAllowed|Permission|denied/i.test(e.name + " " + e.message);
+  mostrarAviso("🎙️", negado ? "O Chrome bloqueou o microfone" : "Não consegui usar o microfone",
+    negado ? "Toque no cadeado ao lado do endereço → Permissões → Microfone → Permitir. Depois recarregue a página."
+           : "Erro: " + (e && (e.name || e.message)) + ". Confira se outro app está usando o microfone e recarregue a página.");
+}
+$("#micTeste").onclick = async () => {
+  abrirQr("Teste do microfone", "Fale normalmente perto do tablet. A barra deve se mexer com a sua voz. Diga \"Ei, Jarvis\" para ver a pontuação.");
+  $("#qrArea").innerHTML = `<div style="width:min(560px,85vw);text-align:left;font-weight:700;color:var(--ink)">
+    <div>Volume</div><div style="height:22px;background:var(--line);border-radius:11px;overflow:hidden;margin:6px 0 14px"><div id="tVol" style="height:100%;width:0;background:var(--salvia);transition:width .08s"></div></div>
+    <div>"Ei, Jarvis" <span id="tScore" style="color:var(--soft)">—</span></div><div style="height:22px;background:var(--line);border-radius:11px;overflow:hidden;margin:6px 0 14px"><div id="tKw" style="height:100%;width:0;background:var(--terra)"></div></div>
+    <div id="tInfo" style="font-size:13px;color:var(--soft);font-weight:600;line-height:1.6"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="pill forte" id="tGravar">⏺ Gravar 3 s e ouvir</button></div></div>`;
+  let stream;
+  try { stream = await mic(); } catch (e) { $("#tInfo").textContent = "Sem acesso ao microfone: " + (e.name || e.message) + ". Libere a permissão do microfone para este site no Chrome."; return; }
+  const c = audioCtx(); if (c.state === "suspended") await c.resume();
+  const an = c.createAnalyser(); an.fftSize = 1024; const src = c.createMediaStreamSource(stream); src.connect(an);
+  const buf = new Float32Array(an.fftSize); let picoVol = 0; OWW.pico = 0;
+  const trilha = stream.getAudioTracks()[0], ajustes = trilha.getSettings ? trilha.getSettings() : {};
+  const loop = setInterval(() => {
+    if ($("#qrBox").style.display === "none") { clearInterval(loop); src.disconnect(); return; }
+    an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v;
+    const rms = Math.sqrt(s / buf.length); picoVol = Math.max(picoVol * 0.995, rms);
+    $("#tVol").style.width = Math.min(100, rms * 400) + "%";
+    const sc = OWW.score || 0; $("#tKw").style.width = Math.round(sc * 100) + "%";
+    $("#tScore").textContent = OWW.mel ? `agora ${sc.toFixed(2)} · maior ${(OWW.pico || 0).toFixed(2)} · dispara em ${(Number(cfg.sens) || 0.5).toFixed(2)}` : "(modelo não carregado — toque em Começar)";
+    $("#tInfo").innerHTML = `Microfone: <b>${esc(trilha.label || "padrão")}</b> · ${trilha.readyState === "live" ? "ligado" : "desligado"} · ${trilha.muted ? "MUDO pelo sistema" : "ok"}<br>
+      Áudio: ${c.sampleRate} Hz · estado ${c.state} · volume máximo recente ${(picoVol * 100).toFixed(1)}%<br>
+      "Ei, Jarvis": ${cfg.wake === "oww" ? `${OWW.processados || 0} blocos analisados, ${OWW.descartados || 0} descartados por lentidão` : "desligado nas configurações"}${ajustes.sampleRate ? ` · captura ${ajustes.sampleRate} Hz` : ""}`;
+  }, 100);
+  $("#tGravar").onclick = async () => {
+    const b = $("#tGravar"); b.disabled = true; b.textContent = "Gravando…";
+    const proc = c.createScriptProcessor(4096, 1, 1), blocos = [];
+    proc.onaudioprocess = e => blocos.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(proc); proc.connect(c.destination);
+    await new Promise(r => setTimeout(r, 3000));
+    proc.disconnect();
+    const a = new Audio("data:audio/wav;base64," + wavBase64(blocos, c.sampleRate)); radioDuck(true);
+    b.textContent = "Tocando…"; await a.play().catch(() => {}); a.onended = () => { b.disabled = false; b.textContent = "⏺ Gravar 3 s e ouvir"; radioDuck(false); };
+  };
+};
 
 // ================= Passar a configuração do PC para o tablet por QR =================
 // O QR só aparece na tela do PC e é lido pela câmera do tablet: as chaves não passam por nenhum servidor nem link.
@@ -1422,9 +1466,11 @@ $("#btnIniciar").onclick = async () => {
   $("#inicio").style.display = "none";
   try { await document.documentElement.requestFullscreen(); } catch {}
   await audioCtx().resume(); manterTela(); carregarVozes();
-  if (!cfg.geminiKey) { abrirCfg(); toast("Cole a chave do Gemini para começar.", 8000); return; }
-  try { await mic(); } catch { toast("Libere o microfone nas permissões do Chrome."); }
-  await iniciarWake();
+  // Pede o microfone logo no primeiro toque, mesmo antes de configurar, para a permissão aparecer
+  let micOk = true;
+  try { await mic(); } catch (e) { micOk = false; avisoMicrofone(e); }
+  if (!cfg.geminiKey) { abrirCfg(); toast("Configure ou digite o código do PC para começar.", 8000); return; }
+  if (micOk) await iniciarWake();
   anunciar(`${periodo()}${cfg.familia ? ", família " + cfg.familia : ""}! Tudo pronto por aqui.`);
 };
 
