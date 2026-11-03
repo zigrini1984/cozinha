@@ -313,6 +313,13 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
     <label style="grid-column:span 3">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
   </div>
   <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button></div>
+  <div class="acoes" style="margin-top:12px;align-items:center"><button class="pill" id="qrMostrar">💻 Configurei no PC: mostrar QR para o tablet</button><button class="pill" id="qrLer">📷 Ler QR do computador</button></div>
+</div>
+<div id="qrBox" style="position:fixed;inset:0;z-index:45;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px;overflow:auto">
+  <div id="qrTitulo" style="font-size:24px;font-weight:800"></div>
+  <div id="qrSub" style="color:var(--soft);font-weight:600;max-width:560px;line-height:1.5"></div>
+  <div id="qrArea" style="background:#fff;padding:16px;border-radius:16px;box-shadow:var(--sombra)"></div>
+  <button class="pill forte" id="qrFechar">Fechar</button>
 </div>
 <div id="toast"></div>
 <audio id="radio" preload="none"></audio>
@@ -1303,6 +1310,77 @@ $("#cfgSalvar").onclick = () => {
 };
 $("#cfgGeo").onclick = () => navigator.geolocation.getCurrentPosition(p => { $("#c_lat").value = p.coords.latitude.toFixed(4); $("#c_lon").value = p.coords.longitude.toFixed(4); }, () => toast("Não consegui ler a localização."));
 $("#cfgTeste").onclick = () => { cfg.voz = $("#c_voz").value; cfg.vel = Number($("#c_vel").value); falar(`Olá${cfg.familia ? ", família " + cfg.familia : ""}! Estou pronta para ajudar na cozinha.`); };
+
+// ================= Passar a configuração do PC para o tablet por QR =================
+// O QR só aparece na tela do PC e é lido pela câmera do tablet: as chaves não passam por nenhum servidor nem link.
+function carregarScript(url) {
+  return new Promise((ok, erro) => { const s = document.createElement("script"); s.src = url; s.onload = ok; s.onerror = () => erro(new Error("sem internet para carregar " + url)); document.head.appendChild(s); });
+}
+function lerFormulario() {
+  const c = Object.assign({}, cfg);
+  for (const k of CAMPOS) { const el = $("#c_" + k); if (el) c[k] = typeof PADRAO[k] === "number" ? Number(el.value) : el.value.trim(); }
+  return c;
+}
+function abrirQr(titulo, sub) { $("#qrTitulo").textContent = titulo; $("#qrSub").textContent = sub; $("#qrArea").innerHTML = ""; $("#qrBox").style.display = "flex"; }
+let qrCamera = null;
+function fecharQr() {
+  $("#qrBox").style.display = "none"; $("#qrArea").innerHTML = "";
+  if (qrCamera) { qrCamera.getTracks().forEach(t => t.stop()); qrCamera = null; }
+}
+$("#qrFechar").onclick = fecharQr;
+async function qrGerar(texto) {
+  if (!window.qrcode) await carregarScript("https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js");
+  const q = qrcode(0, "L"); q.addData(unescape(encodeURIComponent(texto))); q.make();
+  return q;
+}
+$("#qrMostrar").onclick = async () => {
+  const c = lerFormulario();
+  if (!c.geminiKey) { toast("Cole a chave do Gemini antes de gerar o QR."); return; }
+  const dados = {}; for (const k of CAMPOS) if (c[k] !== PADRAO[k]) dados[k] = c[k];
+  gravar("cfg", Object.assign(cfg, c));
+  try {
+    const q = await qrGerar(JSON.stringify({ cozinha: 1, cfg: dados }));
+    abrirQr("Aponte a câmera do tablet para este código", "No tablet: engrenagem ⚙️ → \"📷 Ler QR do computador\". O código tem as suas chaves: não fotografe nem compartilhe. Feche esta tela depois.");
+    $("#qrArea").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    const svg = $("#qrArea svg"); svg.style.width = svg.style.height = "min(55vh, 80vw)"; svg.style.display = "block";
+  } catch (e) { toast(e.message); }
+};
+$("#qrLer").onclick = async () => {
+  abrirQr("Mostre o QR do computador para a câmera", "Segure o tablet a uns 30 cm da tela do PC.");
+  const v = document.createElement("video"); v.playsInline = true; v.muted = true;
+  v.style.cssText = "width:min(55vh,80vw);border-radius:12px;background:#000;display:block";
+  $("#qrArea").appendChild(v);
+  try {
+    qrCamera = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+    v.srcObject = qrCamera; await v.play();
+    const detector = "BarcodeDetector" in window ? new BarcodeDetector({ formats: ["qr_code"] }) : null;
+    if (!detector && !window.jsQR) await carregarScript("https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js");
+    const tela = document.createElement("canvas"), ctx = tela.getContext("2d", { willReadFrequently: true });
+    const procurar = async () => {
+      if (!qrCamera) return;
+      let texto = null;
+      try {
+        if (detector) { const r = await detector.detect(v); texto = r[0]?.rawValue || null; }
+        else if (v.videoWidth) {
+          tela.width = v.videoWidth; tela.height = v.videoHeight; ctx.drawImage(v, 0, 0);
+          texto = jsQR(ctx.getImageData(0, 0, tela.width, tela.height).data, tela.width, tela.height)?.data || null;
+        }
+      } catch {}
+      if (texto && importarConfig(texto)) return;
+      setTimeout(procurar, 250);
+    };
+    procurar();
+  } catch (e) { toast("Não consegui abrir a câmera: " + (e.message || e)); }
+};
+function importarConfig(texto) {
+  let j; try { j = JSON.parse(texto); } catch { return false; }
+  if (!j || j.cozinha !== 1 || !j.cfg) return false;
+  for (const k of CAMPOS) if (k in j.cfg) cfg[k] = j.cfg[k];
+  gravar("cfg", cfg); fecharQr(); som.aviso();
+  toast("Configuração recebida do computador! Reiniciando…", 3000);
+  setTimeout(() => location.reload(), 1500);
+  return true;
+}
 
 // ================= Início =================
 async function manterTela() { try { await navigator.wakeLock.request("screen"); } catch {} }
