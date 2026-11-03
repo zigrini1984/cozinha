@@ -1,0 +1,10 @@
+{
+  "name": "Jarvis Cozinha",
+  "short_name": "Jarvis",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#05090d",
+  "theme_color": "#05090d",
+  "icons": [{ "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

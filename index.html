@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f1e9">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<title>Cozinha da Família</title>
+<style>
+:root{
+  --bg:#f6f1e9; --card:#fffdf9; --ink:#3a3532; --soft:#8a817a; --line:#ece4d8;
+  --terra:#e07a5f; --terra-bg:#fbe9e3; --salvia:#6fa58a; --salvia-bg:#e5f1ea;
+  --mostarda:#e9b44c; --mostarda-bg:#fbf1d9; --ceu:#5b8fc7; --ceu-bg:#e4eef8;
+  --lavanda:#9a86c9; --lavanda-bg:#eeeaf7;
+  --sombra:0 2px 0 rgba(58,53,50,.04),0 8px 24px rgba(58,53,50,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input{font-family:inherit}
+body.noite #app{filter:brightness(.55) saturate(.8)}
+#app{display:grid;grid-template-rows:auto 1fr 64px;gap:14px;height:100vh;padding:16px 18px 14px}
+
+/* topo */
+#topo{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+#saudacao{font-size:30px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
+#saudacao span{color:var(--terra)}
+#dataLonga{font-size:16px;color:var(--soft);font-weight:600;margin-top:4px;text-transform:capitalize}
+#dataLonga b{color:var(--salvia);font-weight:700}
+#hora{font-size:62px;font-weight:800;letter-spacing:-.03em;line-height:.9;font-variant-numeric:tabular-nums}
+
+/* grade */
+#grade{display:grid;grid-template-columns:1.12fr 1fr 1fr 1.05fr;grid-template-rows:1fr 1fr;gap:14px;min-height:0}
+.card{background:var(--card);border-radius:22px;box-shadow:var(--sombra);padding:16px 18px;min-height:0;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.card h2{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.card h2 .e{font-size:17px;letter-spacing:0}
+.card h2 .acao{margin-left:auto;font-size:12px;letter-spacing:0;text-transform:none;color:var(--terra);font-weight:700}
+.vazio{color:var(--soft);font-size:14px;line-height:1.45}
+.vazio i{font-style:normal;color:var(--terra);font-weight:700}
+.rolagem{overflow:auto;min-height:0;flex:1;scrollbar-width:none}
+.rolagem::-webkit-scrollbar{display:none}
+
+/* clima */
+#clima{grid-column:1;grid-row:1;background:linear-gradient(160deg,#fff6e6,#fffdf9 60%)}
+.climaTopo{display:flex;align-items:center;gap:12px}
+#climaEmoji{font-size:58px;line-height:1}
+#climaTemp{font-size:50px;font-weight:800;letter-spacing:-.03em;line-height:1}
+#climaDesc{font-size:14px;color:var(--soft);font-weight:600}
+#horas{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
+#horas div{text-align:center;background:var(--bg);border-radius:12px;padding:6px 2px;font-size:12px;color:var(--soft);font-weight:700}
+#horas div b{display:block;font-size:20px;line-height:1.3}
+#horas div span{display:block;color:var(--ink);font-size:14px}
+#climaRodape{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:auto;padding-top:10px;font-size:13px;color:var(--soft);font-weight:600}
+#climaRodape b{color:var(--ink)}
+
+/* hoje */
+#hoje{grid-column:1;grid-row:2}
+.ev{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line)}
+.ev:last-child{border:none}
+.ev .h{min-width:48px;font-weight:800;color:var(--ceu);font-size:15px;font-variant-numeric:tabular-nums}
+.ev .t{font-size:15px;font-weight:600;line-height:1.3}
+.ev .s{font-size:12px;color:var(--soft);font-weight:600}
+.dia{font-size:12px;font-weight:800;color:var(--soft);text-transform:uppercase;letter-spacing:.06em;margin:6px 0 2px}
+#contagens{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{background:var(--lavanda-bg);color:#5b4a8c;border-radius:999px;padding:5px 11px;font-size:13px;font-weight:700;white-space:nowrap}
+.chip.niver{background:var(--terra-bg);color:#a2452c}
+
+/* cardápio */
+#cardapio{grid-column:2;grid-row:1;background:linear-gradient(160deg,#eef6f0,#fffdf9 65%)}
+.refeicao{display:flex;gap:12px;align-items:center;padding:8px 0}
+.refeicao .ic{font-size:30px;width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--sombra)}
+.refeicao .r{font-size:12px;font-weight:800;color:var(--salvia);text-transform:uppercase;letter-spacing:.06em}
+.refeicao .p{font-size:18px;font-weight:700;line-height:1.2}
+#cardProx{margin-top:auto;font-size:13px;color:var(--soft);font-weight:600;line-height:1.5}
+#cardProx b{color:var(--ink)}
+
+/* agora: timers ou você sabia */
+#agora{grid-column:2;grid-row:2}
+.timer{border-radius:16px;background:var(--mostarda-bg);padding:10px 14px;display:flex;align-items:center;gap:12px;margin-bottom:8px;position:relative;overflow:hidden}
+.timer .n{font-size:15px;font-weight:700;flex:1;text-transform:capitalize}
+.timer .t{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.timer .bar{position:absolute;left:0;bottom:0;height:4px;background:var(--mostarda);border-radius:0 4px 4px 0}
+.timer.tocando{background:var(--terra);color:#fff;animation:pulsa 1s infinite}
+@keyframes pulsa{50%{transform:scale(1.02)}}
+#saber p{font-size:15px;line-height:1.4;font-weight:600;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+#saber .piada{margin-top:8px;background:var(--ceu-bg);border-radius:14px;padding:8px 12px;font-size:13.5px;color:#2f5c8a;font-weight:600;flex:none}
+#saber .frase{margin-top:auto;padding-top:6px;font-family:Caveat,cursive;font-size:19px;color:var(--soft);line-height:1.1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:none}
+
+/* listas */
+#listas{grid-column:3;grid-row:1/3}
+.abas{display:flex;gap:6px;margin-bottom:10px;background:var(--bg);border-radius:14px;padding:4px}
+.abas button{flex:1;padding:8px;border-radius:11px;font-weight:800;font-size:14px;color:var(--soft)}
+.abas button.on{background:#fff;color:var(--ink);box-shadow:var(--sombra)}
+.item{display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--line);font-size:17px;font-weight:600}
+.item .ck{width:24px;height:24px;border-radius:8px;border:2.5px solid var(--salvia);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.item.ok .ck{background:var(--salvia)}
+.item.ok .tx{text-decoration:line-through;color:var(--soft)}
+.item .tx{flex:1}
+.item .q{font-size:12px;color:var(--soft);font-weight:700;background:var(--bg);border-radius:999px;padding:2px 8px}
+.add{display:flex;gap:8px;margin-top:10px}
+.add input{flex:1;border:2px solid var(--line);border-radius:12px;padding:9px 12px;font-size:15px;background:#fff;outline:none}
+.add input:focus{border-color:var(--salvia)}
+.add button{background:var(--salvia);color:#fff;border-radius:12px;padding:0 16px;font-weight:800;font-size:20px}
+.pessoa{font-size:12px;font-weight:800;color:var(--lavanda);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 0}
+
+/* mural */
+#mural{grid-column:4;grid-row:1/3;background:#f3ead9;background-image:radial-gradient(#e6dac3 1px,transparent 1px);background-size:14px 14px}
+#notas{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;padding:4px 2px}
+.nota{border-radius:4px 4px 14px 4px;padding:12px 12px 10px;font-family:Caveat,cursive;font-size:23px;line-height:1.08;box-shadow:0 6px 14px rgba(58,53,50,.12);position:relative;min-height:96px;display:flex;flex-direction:column}
+.nota:nth-child(odd){transform:rotate(-1.6deg)}.nota:nth-child(even){transform:rotate(1.3deg)}
+.nota .de{margin-top:auto;padding-top:6px;font-family:Nunito;font-size:11px;font-weight:800;opacity:.65;text-transform:uppercase;letter-spacing:.05em}
+.nota .x{position:absolute;top:2px;right:4px;font-family:Nunito;font-size:16px;opacity:.35;padding:2px 6px}
+.c0{background:#fff1a8}.c1{background:#ffd6cc}.c2{background:#d4f0dc}.c3{background:#d6e7fb}.c4{background:#e8defa}
+
+/* barra */
+#barra{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:20px;box-shadow:var(--sombra);padding:8px 10px 8px 16px}
+#radioIc{width:42px;height:42px;border-radius:13px;background:var(--terra-bg);display:flex;align-items:center;justify-content:center;font-size:22px}
+#radioTxt{min-width:0;flex:1}
+#radioNome{font-weight:800;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#radioSub{font-size:12px;color:var(--soft);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq{display:none;gap:3px;align-items:flex-end;height:20px}
+.tocando .eq{display:flex}.tocando #radioIc{display:none}
+.eq i{width:4px;border-radius:2px;background:var(--terra);animation:eq .9s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:.25s}.eq i:nth-child(3){animation-delay:.5s}.eq i:nth-child(4){animation-delay:.12s}
+@keyframes eq{0%,100%{height:5px}50%{height:20px}}
+.pill{background:var(--bg);border-radius:999px;padding:9px 14px;font-weight:700;font-size:14px;white-space:nowrap}
+.pill.forte{background:var(--terra);color:#fff}
+#favs{display:flex;gap:6px;overflow:hidden;max-width:420px}
+#mic{width:48px;height:48px;border-radius:50%;background:var(--terra);color:#fff;font-size:22px;box-shadow:0 6px 16px rgba(224,122,95,.4)}
+#dica{font-size:13px;color:var(--soft);font-weight:700;white-space:nowrap}
+
+/* assistente */
+#assist{position:fixed;left:50%;bottom:92px;transform:translate(-50%,30px);width:min(760px,92vw);background:#fff;border-radius:26px;box-shadow:0 20px 60px rgba(58,53,50,.25);padding:18px 22px;display:flex;gap:18px;align-items:center;opacity:0;pointer-events:none;transition:.35s cubic-bezier(.2,.9,.3,1.2);z-index:20}
+#assist.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#bola{width:64px;height:64px;border-radius:50%;flex:none;background:conic-gradient(from 0deg,var(--terra),var(--mostarda),var(--salvia),var(--ceu),var(--lavanda),var(--terra));animation:gira 6s linear infinite;position:relative}
+#bola::after{content:"";position:absolute;inset:7px;border-radius:50%;background:#fff}
+#bola i{position:absolute;inset:18px;border-radius:50%;background:var(--terra);z-index:1;transition:transform .1s}
+.ouvindo #bola{animation-duration:1.4s}.pensando #bola{animation-duration:.8s}
+.pensando #bola i{background:var(--mostarda)}.falando #bola i{background:var(--salvia)}
+@keyframes gira{to{transform:rotate(360deg)}}
+#assistTx{flex:1;min-width:0}
+#assistEstado{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--terra)}
+#voceDisse{font-size:14px;color:var(--soft);font-weight:600;margin-top:2px}
+#resposta{font-size:20px;font-weight:700;line-height:1.35;margin-top:4px;max-height:170px;overflow:auto}
+
+/* receita */
+#receita{position:fixed;inset:0;background:var(--bg);z-index:15;display:none;grid-template-columns:330px 1fr;gap:18px;padding:18px}
+#receita.on{display:grid}
+#receita .card{padding:20px 22px}
+#recTit{font-size:26px;font-weight:800;line-height:1.15}
+#recMeta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 12px}
+#recIng .item{font-size:16px;padding:7px 2px}
+#recPassos{display:flex;gap:5px;margin-bottom:22px}
+#recPassos i{flex:1;height:6px;border-radius:3px;background:var(--line)}
+#recPassos i.feito{background:var(--salvia)}#recPassos i.atual{background:var(--terra)}
+#recNum{font-size:15px;font-weight:800;color:var(--terra);text-transform:uppercase;letter-spacing:.08em}
+#recPasso{font-size:36px;font-weight:700;line-height:1.3;margin-top:10px;overflow:auto;min-height:0}
+#recDica{display:flex;gap:12px;align-items:flex-start;background:var(--mostarda-bg);border-radius:16px;padding:14px 18px;margin-top:22px;font-size:20px;font-weight:600;line-height:1.4;color:#6b4d12;flex:none}
+#recDica b{font-size:24px;line-height:1}
+#recNav{display:flex;gap:10px;align-items:center;margin-top:auto;padding-top:16px}
+#recNav .pill{font-size:17px;padding:13px 22px}
+
+/* anúncio, alarme e descanso */
+#aviso{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:var(--terra);color:#fff;text-align:center;padding:40px}
+#aviso.on{display:flex}
+#avisoEmoji{font-size:110px;animation:pulsa 1.2s infinite}
+#avisoTx{font-size:52px;font-weight:800;line-height:1.15;max-width:1000px}
+#avisoSub{font-size:18px;font-weight:700;opacity:.85}
+#descanso{position:fixed;inset:0;z-index:25;background:#2d2926;display:none;overflow:hidden}
+#descanso.on{display:block}
+#descanso .foto{position:absolute;inset:-4%;background-size:cover;background-position:center;opacity:0;transition:opacity 2s}
+#descanso .foto.vis{opacity:1;animation:kb 26s ease-out forwards}
+@keyframes kb{from{transform:scale(1)}to{transform:scale(1.09) translate(-1.5%,-1%)}}
+#descanso .veu{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.55),transparent 45%)}
+#descInfo{position:absolute;left:44px;bottom:36px;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+#descHora{font-size:110px;font-weight:800;letter-spacing:-.04em;line-height:.9}
+#descData{font-size:22px;font-weight:700;margin-top:8px;text-transform:capitalize}
+#descTimers{position:absolute;right:36px;bottom:40px;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+#descTimers div{background:rgba(255,255,255,.92);color:var(--ink);border-radius:16px;padding:8px 16px;font-weight:800;font-size:24px}
+#descFrase{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:80px;text-align:center;font-family:Caveat,cursive;font-size:56px;color:#f6f1e9;line-height:1.15}
+
+/* config e início */
+#cfg{position:fixed;inset:0;background:var(--bg);z-index:40;display:none;overflow:auto;padding:24px}
+#cfg.on{display:block}
+#cfg h1{font-size:26px;font-weight:800;max-width:1040px;margin:0 auto 4px}
+#cfg .sub{max-width:1040px;margin:0 auto 16px;color:var(--soft);font-weight:600}
+#cfg .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px 18px;max-width:1040px;margin:0 auto}
+#cfg label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:700;color:var(--soft)}
+#cfg input,#cfg select,#cfg textarea{background:#fff;border:2px solid var(--line);color:var(--ink);border-radius:12px;padding:9px 11px;font-size:15px;font-family:inherit}
+#cfg .acoes{max-width:1040px;margin:20px auto 0;display:flex;gap:10px;flex-wrap:wrap}
+#inicio{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+#inicio h1{font-size:40px;font-weight:800}
+#inicio p{color:var(--soft);font-weight:600;max-width:440px;line-height:1.5}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:14px;font-size:14px;font-weight:700;display:none;z-index:60;max-width:80vw}
+#btnCfg{font-size:20px;opacity:.45;padding:6px}
+</style>
+</head>
+<body>
+<div id="inicio">
+  <div style="font-size:72px">🏡</div>
+  <h1>Cozinha da Família</h1>
+  <p>Toque para começar. O navegador precisa de um toque para liberar o microfone, o som e a tela cheia.</p>
+  <button id="btnIniciar" class="pill forte" style="font-size:20px;padding:14px 36px">Começar</button>
+</div>
+
+<div id="app">
+  <header id="topo">
+    <div>
+      <div id="saudacao">Olá!</div>
+      <div id="dataLonga">&nbsp;</div>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:10px">
+      <div id="hora">--:--</div>
+      <button id="btnCfg" aria-label="Configurações">⚙️</button>
+    </div>
+  </header>
+
+  <main id="grade">
+    <section class="card" id="clima">
+      <h2><span class="e">🌤️</span> Tempo <span class="acao" id="cidade"></span></h2>
+      <div class="climaTopo"><div id="climaEmoji">⏳</div><div><div id="climaTemp">--°</div><div id="climaDesc">carregando…</div></div></div>
+      <div id="horas"></div>
+      <div id="climaRodape"></div>
+    </section>
+
+    <section class="card" id="hoje">
+      <h2><span class="e">📅</span> Agenda da família</h2>
+      <div class="rolagem" id="agenda"></div>
+      <div id="contagens"></div>
+    </section>
+
+    <section class="card" id="cardapio">
+      <h2><span class="e">🍽️</span> Cardápio de hoje</h2>
+      <div id="refeicoes"></div>
+      <div id="cardProx"></div>
+    </section>
+
+    <section class="card" id="agora">
+      <div id="timersBox" style="display:none"><h2><span class="e">⏲️</span> Timers</h2><div id="timers"></div></div>
+      <div id="saber" style="display:flex;flex-direction:column;height:100%"><h2><span class="e">💡</span> Você sabia?</h2><p id="curiosidade" class="vazio">Carregando a curiosidade do dia…</p><div class="piada" id="piada" style="display:none"></div><div class="frase" id="frase"></div></div>
+    </section>
+
+    <section class="card" id="listas">
+      <div class="abas"><button data-aba="compras" class="on">🛒 Compras</button><button data-aba="tarefas">✅ Tarefas</button><button data-aba="lembretes">⏰ Lembretes</button></div>
+      <div class="rolagem" id="lista"></div>
+      <form class="add" id="addForm" autocomplete="off"><input id="addTx" placeholder="Adicionar item…"><button aria-label="Adicionar">+</button></form>
+    </section>
+
+    <section class="card" id="mural">
+      <h2><span class="e">📌</span> Mural de recados</h2>
+      <div class="rolagem"><div id="notas"></div></div>
+    </section>
+  </main>
+
+  <footer id="barra">
+    <div id="radioIc">📻</div>
+    <div class="eq"><i></i><i></i><i></i><i></i></div>
+    <div id="radioTxt"><div id="radioNome">Rádio desligado</div><div id="radioSub">Diga "toca uma rádio de MPB"</div></div>
+    <div id="favs"></div>
+    <button class="pill" id="radioBtn" style="display:none">⏹ Parar</button>
+    <div id="dica">Diga "Jarvis" ou toque →</div>
+    <button id="mic" aria-label="Falar">🎙️</button>
+  </footer>
+</div>
+
+<div id="assist">
+  <div id="bola"><i></i></div>
+  <div id="assistTx"><div id="assistEstado">ouvindo</div><div id="voceDisse"></div><div id="resposta"></div></div>
+</div>
+
+<div id="receita">
+  <section class="card">
+    <div id="recTit"></div>
+    <div id="recMeta"></div>
+    <h2><span class="e">🧺</span> Ingredientes <span class="acao">toque para marcar</span></h2>
+    <div class="rolagem" id="recIng"></div>
+  </section>
+  <section class="card">
+    <div id="recPassos"></div>
+    <div id="recNum"></div>
+    <div id="recPasso"></div>
+    <div id="recDica" style="display:none"><b>💡</b><span></span></div>
+    <div id="recNav"><button class="pill" id="recAnt">← Anterior</button><button class="pill forte" id="recProx">Próximo →</button><span style="flex:1"></span><button class="pill" id="recTimer" style="display:none"></button><button class="pill" id="recFechar">✕ Fechar</button></div>
+  </section>
+</div>
+
+<div id="aviso"><div id="avisoEmoji">📣</div><div id="avisoTx"></div><div id="avisoSub">Toque para fechar</div></div>
+<div id="descanso"><div class="foto"></div><div class="foto"></div><div id="descFrase"></div><div class="veu"></div><div id="descInfo"><div id="descHora"></div><div id="descData"></div></div><div id="descTimers"></div></div>
+
+<div id="cfg">
+  <h1>⚙️ Configurações</h1>
+  <div class="sub">Tudo fica salvo só neste tablet.</div>
+  <div class="grid">
+    <label>Chave da API Gemini<input id="c_geminiKey" type="password"></label>
+    <label>Modelo Gemini<input id="c_modelo"></label>
+    <label>Nome da assistente<input id="c_assistente"></label>
+    <label>Sobrenome da família<input id="c_familia" placeholder="Silva"></label>
+    <label>Pessoas da casa (vírgula)<input id="c_membros" placeholder="Ana, Pedro, Lucas"></label>
+    <label>Voz<select id="c_voz"></select></label>
+    <label>Experiência na cozinha<select id="c_nivel"><option value="iniciante">Iniciante: me ensine tudo</option><option value="intermediario">Intermediário</option><option value="experiente">Experiente: só o essencial</option></select></label>
+    <label>Ativação por voz<select id="c_wake"><option value="porcupine">Porcupine (recomendado)</option><option value="navegador">Reconhecimento do Chrome</option><option value="nenhum">Só toque</option></select></label>
+    <label>Palavra (Porcupine)<select id="c_palavra"><option>Jarvis</option><option>Computer</option><option>Bumblebee</option><option>Terminator</option><option>Picovoice</option></select></label>
+    <label>Picovoice AccessKey<input id="c_picoKey" type="password"></label>
+    <label>Sensibilidade (0.3 a 0.9)<input id="c_sens" type="number" step="0.05"></label>
+    <label>Velocidade da voz (0.8 a 1.4)<input id="c_vel" type="number" step="0.05"></label>
+    <label>Modo noturno (horas)<input id="c_noite" placeholder="22-6"></label>
+    <label>URL do Apps Script<input id="c_scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+    <label>Token do Apps Script<input id="c_scriptToken" type="password"></label>
+    <label>Porta-retrato após (minutos, 0 = nunca)<input id="c_descanso" type="number"></label>
+    <label>Latitude<input id="c_lat" type="number" step="0.0001"></label>
+    <label>Longitude<input id="c_lon" type="number" step="0.0001"></label>
+    <label>Cidade<input id="c_cidade"></label>
+    <label style="grid-column:span 2">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
+    <label>Modelo Porcupine (.pv)<input id="c_picoModel"></label>
+  </div>
+  <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button></div>
+</div>
+<div id="toast"></div>
+<audio id="radio" preload="none"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/@picovoice/web-voice-processor@4.0.10/dist/iife/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@picovoice/porcupine-web@4.0.1/dist/iife/index.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+
+// ================= Configuração e estado =================
+const PADRAO = {
+  geminiKey: "", modelo: "gemini-flash-latest", assistente: "Jarvis", familia: "", membros: "",
+  wake: "porcupine", palavra: "Jarvis", picoKey: "", sens: 0.6,
+  picoModel: "https://cdn.jsdelivr.net/gh/Picovoice/porcupine@v4.0/lib/common/porcupine_params.pv",
+  scriptUrl: "", scriptToken: "", lat: -23.5505, lon: -46.6333, cidade: "São Paulo",
+  voz: "", vel: 1.05, noite: "22-6", favoritas: "", descanso: 5, nivel: "iniciante"
+};
+function ler(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }
+function gravar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+const cfg = Object.assign({}, PADRAO, ler("cfg", {}));
+const membros = () => cfg.membros.split(",").map(s => s.trim()).filter(Boolean);
+
+let timers = ler("timers", []);
+let lembretes = ler("lembretes", []);
+let receita = ler("receita", null);
+let dados = Object.assign({ compras: [], tarefas: [], recados: [], cardapio: [], contagens: [] }, ler("dados", {}));
+let eventos = ler("eventos", []);
+let historico = [];
+let estado = "ocioso";
+let ultimaAtividade = Date.now();
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const bool = v => v === true || v === "true" || v === "TRUE";
+function toast(msg, ms = 5000) {
+  const t = $("#toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = "none", ms);
+}
+
+// ================= Datas =================
+const fmtHora = d => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const dataISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const mesmoDia = (a, b) => a.toDateString() === b.toDateString();
+function rotuloDia(d) {
+  const h = new Date(), am = new Date(); am.setDate(h.getDate() + 1);
+  if (mesmoDia(d, h)) return "Hoje";
+  if (mesmoDia(d, am)) return "Amanhã";
+  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "short" });
+}
+function isoLocal(d) {
+  const p = n => String(n).padStart(2, "0"), off = -d.getTimezoneOffset(), s = off >= 0 ? "+" : "-";
+  return `${dataISO(d)}T${p(d.getHours())}:${p(d.getMinutes())}:00${s}${p(Math.floor(Math.abs(off) / 60))}:${p(Math.abs(off) % 60)}`;
+}
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60, p = n => String(n).padStart(2, "0");
+  return h ? `${h}:${p(m)}:${p(ss)}` : `${p(m)}:${p(ss)}`;
+}
+const diasAte = iso => Math.ceil((new Date(iso + "T00:00") - new Date(dataISO(new Date()) + "T00:00")) / 864e5);
+const periodo = () => { const h = new Date().getHours(); return h < 5 ? "Boa noite" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; };
+
+// ================= Voz =================
+let vozes = [];
+function carregarVozes() {
+  vozes = speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith("pt"));
+  $("#c_voz").innerHTML = '<option value="">Padrão pt-BR</option>' + vozes.map(v => `<option ${v.name === cfg.voz ? "selected" : ""}>${esc(v.name)}</option>`).join("");
+}
+speechSynthesis.onvoiceschanged = carregarVozes;
+// Fala frase a frase: o Chrome Android corta falas longas num único utterance
+async function falar(texto) {
+  if (!texto) return;
+  speechSynthesis.cancel(); radioDuck(true);
+  falar.cancelado = false; falar.foiCortada = false;
+  const limpo = texto.replace(/[*#_`>~]/g, "").replace(/\p{Extended_Pictographic}/gu, "").replace(/\s+/g, " ").trim();
+  const frases = limpo.match(/[^.!?…]+[.!?…]*/g) || [limpo];
+  const v = vozes.find(v => v.name === cfg.voz) || vozes.find(v => v.lang === "pt-BR");
+  for (const f of frases) {
+    if (falar.cancelado) { falar.foiCortada = true; break; }
+    await new Promise(res => {
+      const u = new SpeechSynthesisUtterance(f.trim()); u.lang = "pt-BR"; u.rate = Number(cfg.vel) || 1; if (v) u.voice = v;
+      const t = setTimeout(res, 20000); u.onend = u.onerror = () => { clearTimeout(t); res(); };
+      speechSynthesis.speak(u);
+    });
+  }
+  if (falar.cancelado) falar.foiCortada = true;
+  falar.cancelado = false; radioDuck(false);
+}
+function calar() { falar.cancelado = true; speechSynthesis.cancel(); }
+
+// ================= Áudio =================
+let actx;
+const audioCtx = () => actx || (actx = new (window.AudioContext || window.webkitAudioContext)());
+function nota(freq, ini, dur, vol = 0.25, tipo = "sine") {
+  const c = audioCtx(), o = c.createOscillator(), g = c.createGain(), t = c.currentTime + ini;
+  o.type = tipo; o.frequency.value = freq; g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+const som = {
+  ouvir: () => { nota(784, 0, .12, .15); nota(1175, .09, .16, .15); },
+  ok: () => nota(988, 0, .1, .1),
+  aviso: () => [523, 659, 784, 1047].forEach((f, i) => nota(f, i * .14, .5, .2)),
+  alarme: () => [880, 1109, 1319, 1109, 880].forEach((f, i) => nota(f, i * .16, .3, .3, "triangle"))
+};
+let alarmeLoop = null, alarmeCiclo = 0;
+const CICLO_ALARME = 1.8;
+function alarme(on) {
+  clearInterval(alarmeLoop); alarmeLoop = null;
+  if (!on) { pararEscutaAlarme(); return; }
+  let n = 0;
+  const tocar = () => { alarmeCiclo = performance.now(); som.alarme(); };
+  tocar(); alarmeLoop = setInterval(() => { tocar(); if (++n > 40) pararAlarme(); }, CICLO_ALARME * 1000);
+  escutarAlarme();
+}
+function pararAlarme() {
+  alarme(false); fecharAviso();
+  timers = timers.filter(t => !t.tocando); gravar("timers", timers); renderTimers();
+}
+// Com o alarme tocando, qualquer voz ("para!", "chega!") desliga sem precisar da palavra de ativação.
+// O microfone só é avaliado no intervalo silencioso entre um toque e outro, para o próprio alarme não se desligar.
+let escutaAlarme = null;
+async function escutarAlarme() {
+  if (escutaAlarme) return;
+  let src;
+  try { src = audioCtx().createMediaStreamSource(await mic()); } catch { return; }
+  const c = audioCtx(), proc = c.createScriptProcessor(2048, 1, 1);
+  let base = 0, nBase = 0, seguidos = 0;
+  proc.onaudioprocess = e => {
+    if (!alarmeLoop || ocupado || speechSynthesis.speaking) { seguidos = 0; return; }
+    const fase = (performance.now() - alarmeCiclo) / 1000;
+    if (fase < 1.05 || fase > CICLO_ALARME - 0.05) { seguidos = 0; return; }
+    const d = e.inputBuffer.getChannelData(0); let s = 0;
+    for (let i = 0; i < d.length; i++) s += d[i] * d[i];
+    const rms = Math.sqrt(s / d.length);
+    if (nBase < 10) { base += rms; nBase++; return; }
+    if (rms > Math.max(0.02, (base / nBase) * 3)) { if (++seguidos >= 3) { pararAlarme(); som.ok(); toast("Alarme desligado pela sua voz 👍", 2500); } }
+    else seguidos = 0;
+  };
+  src.connect(proc); proc.connect(c.destination);
+  escutaAlarme = () => { proc.disconnect(); src.disconnect(); };
+}
+function pararEscutaAlarme() { if (escutaAlarme) { escutaAlarme(); escutaAlarme = null; } }
+// Encerra tudo o que está acontecendo: alarmes, avisos, fala da assistente e, se pedido, o rádio
+function pararTudo(incluirRadio = false) {
+  calar(); fila.length = 0;
+  if (alarmeLoop) pararAlarme(); else fecharAviso();
+  if (incluirRadio) pararRadio();
+}
+const algoAcontecendo = () => !!alarmeLoop || $("#aviso").classList.contains("on") || estado === "falando" || speechSynthesis.speaking;
+
+let micStream = null;
+async function mic() {
+  if (micStream && micStream.active) return micStream;
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  return micStream;
+}
+// Grava até ~1.3 s de silêncio depois da fala; devolve WAV 16 kHz em base64, ou null se ninguém falou
+async function gravarFala(esperaMax = 6) {
+  const c = audioCtx(); if (c.state === "suspended") await c.resume();
+  const src = c.createMediaStreamSource(await mic());
+  const proc = c.createScriptProcessor(4096, 1, 1);
+  const blocos = []; let ruido = 0, nRuido = 0, silencio = 0, falou = false;
+  const t0 = performance.now(), bola = $("#bola i");
+  return new Promise(res => {
+    proc.onaudioprocess = e => {
+      const d = e.inputBuffer.getChannelData(0); blocos.push(new Float32Array(d));
+      let s = 0; for (let i = 0; i < d.length; i++) s += d[i] * d[i];
+      const rms = Math.sqrt(s / d.length), dt = d.length / c.sampleRate, el = (performance.now() - t0) / 1000;
+      bola.style.transform = `scale(${1 + Math.min(.9, rms * 9)})`;
+      if (el < 0.35) { ruido += rms; nRuido++; return; }
+      const lim = Math.max(0.012, (ruido / Math.max(1, nRuido)) * 2.6);
+      if (rms > lim) { falou = true; silencio = 0; } else silencio += dt;
+      if ((falou && silencio > 1.3) || el > 20 || (!falou && el > esperaMax)) {
+        proc.disconnect(); src.disconnect(); bola.style.transform = "";
+        res(falou ? wavBase64(blocos, c.sampleRate) : null);
+      }
+    };
+    src.connect(proc); proc.connect(c.destination);
+  });
+}
+function wavBase64(blocos, taxa) {
+  const alvo = 16000, fator = taxa / alvo, total = blocos.reduce((a, b) => a + b.length, 0);
+  const todos = new Float32Array(total); let o = 0; for (const b of blocos) { todos.set(b, o); o += b.length; }
+  const n = Math.floor(total / fator), pcm = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor(i * fator), b = Math.min(total, Math.floor((i + 1) * fator)); let s = 0;
+    for (let j = a; j < b; j++) s += todos[j];
+    const v = Math.max(-1, Math.min(1, s / Math.max(1, b - a))); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+  }
+  const buf = new ArrayBuffer(44 + pcm.byteLength), dv = new DataView(buf);
+  const str = (p, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(p + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); dv.setUint32(4, 36 + pcm.byteLength, true); str(8, "WAVEfmt ");
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, alvo, true); dv.setUint32(28, alvo * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  str(36, "data"); dv.setUint32(40, pcm.byteLength, true); new Int16Array(buf, 44).set(pcm);
+  const bytes = new Uint8Array(buf); let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+// ================= Apps Script (agenda, planilha da família, fotos) =================
+async function scriptGet(params) {
+  if (!cfg.scriptUrl) throw new Error("Apps Script não configurado");
+  const r = await fetch(`${cfg.scriptUrl}?${new URLSearchParams(Object.assign({ token: cfg.scriptToken }, params))}`);
+  const j = await r.json(); if (j.erro) throw new Error(j.erro); return j;
+}
+// Corpo text/plain evita o preflight de CORS, que o Apps Script não responde
+async function scriptPost(obj) {
+  const r = await fetch(cfg.scriptUrl, { method: "POST", body: JSON.stringify(Object.assign({ token: cfg.scriptToken }, obj)) });
+  const j = await r.json(); if (j.erro) throw new Error(j.erro); return j;
+}
+
+// ================= Dados da família (local + planilha) =================
+const nuvem = () => !!cfg.scriptUrl;
+function normalizar(aba, lista) {
+  return lista.map(o => {
+    if (aba === "compras") o.comprado = bool(o.comprado);
+    if (aba === "tarefas") o.feito = bool(o.feito);
+    return o;
+  });
+}
+async function puxarDados() {
+  if (!nuvem()) return;
+  try {
+    const j = await scriptGet({ acao: "dados" });
+    for (const k of Object.keys(dados)) if (Array.isArray(j[k])) dados[k] = normalizar(k, j[k]);
+    gravar("dados", dados); renderDados();
+  } catch (e) { console.warn("planilha", e); }
+}
+// Lê a versão mais nova da planilha, aplica a mudança e grava a aba inteira de volta
+async function alterar(aba, fn) {
+  if (nuvem()) await puxarDados();
+  dados[aba] = fn(dados[aba].slice());
+  gravar("dados", dados); renderDados();
+  if (nuvem()) { try { await scriptPost({ acao: "salvar", aba, lista: dados[aba] }); } catch (e) { toast("Não consegui salvar na planilha: " + e.message); } }
+}
+const contem = (a, b) => a.toLowerCase().includes(b.toLowerCase()) || b.toLowerCase().includes(a.toLowerCase());
+
+// ================= Rádio =================
+const radio = $("#radio");
+let radioVol = ler("radioVol", 0.8), radioAtual = null;
+const favoritas = () => cfg.favoritas.split("\n").map(l => l.split("|")).filter(p => p.length >= 2 && p[1].trim().startsWith("https")).map(p => ({ nome: p[0].trim(), url: p[1].trim() }));
+function radioDuck(on) { radio.volume = on ? Math.min(radioVol, 0.1) : radioVol; }
+async function buscarRadio(nome) {
+  const fav = favoritas().find(f => contem(f.nome, nome));
+  if (fav) return { nome: fav.nome, url: fav.url, sub: "Favorita da casa" };
+  for (const srv of ["de1", "fi1", "de2", "nl1", "at1"]) {
+    try {
+      const r = await fetch(`https://${srv}.api.radio-browser.info/json/stations/search?name=${encodeURIComponent(nome)}&limit=25&hidebroken=true&order=clickcount&reverse=true`);
+      if (!r.ok) continue;
+      let lista = (await r.json()).filter(s => (s.url_resolved || "").startsWith("https"));
+      if (!lista.length) {
+        const r2 = await fetch(`https://${srv}.api.radio-browser.info/json/stations/search?tag=${encodeURIComponent(nome)}&countrycode=BR&limit=25&hidebroken=true&order=clickcount&reverse=true`);
+        lista = (await r2.json()).filter(s => (s.url_resolved || "").startsWith("https"));
+      }
+      lista.sort((a, b) => (b.countrycode === "BR") - (a.countrycode === "BR"));
+      if (!lista.length) return null;
+      const s = lista[0];
+      return { nome: s.name.trim(), url: s.url_resolved, sub: [s.state, s.country].filter(Boolean).join(" · ") };
+    } catch {}
+  }
+  throw new Error("serviço de rádios fora do ar");
+}
+async function tocarRadio(st) {
+  radio.src = st.url; radioAtual = st; radio.volume = radioVol;
+  try { await radio.play(); } catch { radioAtual = null; throw new Error("não consegui tocar esse stream"); }
+  $("#radioNome").textContent = st.nome; $("#radioSub").textContent = st.sub || "";
+  $("#barra").classList.add("tocando"); $("#radioBtn").style.display = "";
+}
+function pararRadio() {
+  radio.pause(); radio.removeAttribute("src"); radio.load(); radioAtual = null;
+  $("#radioNome").textContent = "Rádio desligado"; $("#radioSub").textContent = 'Diga "toca uma rádio de MPB"';
+  $("#barra").classList.remove("tocando"); $("#radioBtn").style.display = "none";
+}
+radio.onerror = () => { if (radioAtual) { toast("A rádio saiu do ar."); pararRadio(); } };
+$("#radioBtn").onclick = pararRadio;
+function renderFavs() { $("#favs").innerHTML = favoritas().slice(0, 3).map((f, i) => `<button class="pill" data-i="${i}">${esc(f.nome)}</button>`).join(""); }
+$("#favs").onclick = e => { const b = e.target.closest("button"); if (b) tocarRadio(Object.assign({ sub: "Favorita da casa" }, favoritas()[b.dataset.i])).catch(err => toast(err.message)); };
+
+// ================= Clima =================
+function wmo(c, dia = 1) {
+  if (c === 0) return [dia ? "☀️" : "🌙", "Céu limpo"];
+  if (c <= 2) return [dia ? "🌤️" : "☁️", "Poucas nuvens"];
+  if (c === 3) return ["☁️", "Nublado"];
+  if (c <= 48) return ["🌫️", "Neblina"];
+  if (c <= 57) return ["🌦️", "Garoa"];
+  if (c <= 67) return ["🌧️", "Chuva"];
+  if (c <= 77) return ["❄️", "Neve"];
+  if (c <= 82) return ["🌦️", "Pancadas de chuva"];
+  return ["⛈️", "Tempestade"];
+}
+const uvTx = u => u < 3 ? "baixo" : u < 6 ? "moderado" : u < 8 ? "alto" : u < 11 ? "muito alto" : "extremo";
+let clima = null;
+async function atualizarClima() {
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,precipitation_probability,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max&timezone=auto&forecast_days=3`;
+    clima = await (await fetch(u)).json();
+    const c = clima.current, d = clima.daily, [em, desc] = wmo(c.weather_code, c.is_day);
+    $("#climaEmoji").textContent = em;
+    $("#climaTemp").textContent = Math.round(c.temperature_2m) + "°";
+    $("#climaDesc").textContent = `${desc} · sensação de ${Math.round(c.apparent_temperature)}°`;
+    $("#cidade").textContent = cfg.cidade;
+    const agoraH = new Date(); agoraH.setMinutes(0, 0, 0);
+    const i0 = clima.hourly.time.findIndex(t => new Date(t) >= agoraH);
+    $("#horas").innerHTML = [1, 2, 3, 4, 5].map(k => {
+      const i = i0 + k * 2; if (i < 0 || i >= clima.hourly.time.length) return "";
+      const p = clima.hourly.precipitation_probability[i];
+      return `<div>${new Date(clima.hourly.time[i]).getHours()}h<b>${wmo(clima.hourly.weather_code[i], clima.hourly.is_day[i])[0]}</b><span>${Math.round(clima.hourly.temperature_2m[i])}°</span>${p >= 20 ? `💧${p}%` : "&nbsp;"}</div>`;
+    }).join("");
+    const hr = s => s.slice(11, 16);
+    $("#climaRodape").innerHTML = `<span>⬆️ <b>${Math.round(d.temperature_2m_max[0])}°</b> ⬇️ <b>${Math.round(d.temperature_2m_min[0])}°</b></span><span>🌅 <b>${hr(d.sunrise[0])}</b> 🌇 <b>${hr(d.sunset[0])}</b></span><span>UV <b>${uvTx(d.uv_index_max[0])}</b></span><span>Amanhã ${wmo(d.weather_code[1])[0]} <b>${Math.round(d.temperature_2m_max[1])}°</b>${d.precipitation_probability_max[1] >= 30 ? ` · 💧${d.precipitation_probability_max[1]}%` : ""}</span>`;
+  } catch { $("#climaDesc").textContent = "sem conexão com o tempo"; }
+}
+function resumoClima() {
+  if (!clima) return { erro: "clima indisponível" };
+  const c = clima.current, d = clima.daily;
+  return {
+    cidade: cfg.cidade, agora: { temperatura: c.temperature_2m, sensacao: c.apparent_temperature, umidade: c.relative_humidity_2m, condicao: wmo(c.weather_code)[1], vento_kmh: c.wind_speed_10m },
+    dias: d.time.map((t, i) => ({ data: t, condicao: wmo(d.weather_code[i])[1], max: d.temperature_2m_max[i], min: d.temperature_2m_min[i], chance_chuva: d.precipitation_probability_max[i], uv: d.uv_index_max[i], nascer_sol: d.sunrise[i].slice(11), por_sol: d.sunset[i].slice(11) }))
+  };
+}
+
+// ================= Agenda =================
+const ehNiver = e => /anivers|birthday/i.test(e.titulo + " " + (e.agenda || ""));
+async function atualizarAgenda() {
+  if (!cfg.scriptUrl) { renderAgenda(); return; }
+  try { eventos = (await scriptGet({ dias: 14 })).eventos || []; gravar("eventos", eventos); } catch (e) { console.warn("agenda", e); }
+  renderAgenda();
+}
+function renderAgenda() {
+  const box = $("#agenda");
+  if (!cfg.scriptUrl) { box.innerHTML = '<div class="vazio">Conecte a Google Agenda nas configurações ⚙️ para ver os compromissos da família.</div>'; renderContagens(); return; }
+  const lim = new Date(); lim.setDate(lim.getDate() + 2); lim.setHours(0, 0, 0, 0);
+  const prox = eventos.filter(e => new Date(e.fim) > new Date() && new Date(e.inicio) < lim && !ehNiver(e));
+  let h = "", ult = "";
+  for (const e of prox) {
+    const ini = new Date(e.inicio), rot = rotuloDia(ini);
+    if (rot !== ult) { h += `<div class="dia">${rot}</div>`; ult = rot; }
+    h += `<div class="ev"><span class="h">${e.diaInteiro ? "🗓️" : fmtHora(ini)}</span><div><div class="t">${esc(e.titulo)}</div>${e.local ? `<div class="s">📍 ${esc(e.local)}</div>` : ""}</div></div>`;
+  }
+  box.innerHTML = h || '<div class="vazio">Nada marcado para hoje e amanhã. Dia tranquilo! ☕</div>';
+  renderContagens();
+}
+function renderContagens() {
+  const chips = [];
+  for (const e of eventos.filter(ehNiver)) {
+    const n = diasAte(dataISO(new Date(e.inicio)));
+    if (n >= 0 && n <= 14) chips.push([n, `<span class="chip niver">🎂 ${esc(e.titulo.replace(/^anivers[aá]rio( de| da| do)?\s*/i, ""))} ${n === 0 ? "é hoje!" : n === 1 ? "amanhã" : `em ${n} dias`}</span>`]);
+  }
+  for (const c of dados.contagens) {
+    const n = diasAte(String(c.data).slice(0, 10));
+    if (n >= 0) chips.push([n, `<span class="chip">${esc(c.emoji || "⏳")} ${esc(c.titulo)} ${n === 0 ? "é hoje!" : `em ${n} dia${n > 1 ? "s" : ""}`}</span>`]);
+  }
+  $("#contagens").innerHTML = chips.sort((a, b) => a[0] - b[0]).slice(0, 4).map(c => c[1]).join("");
+}
+
+// ================= Cardápio =================
+function renderCardapio() {
+  const hoje = dataISO(new Date()), d = dados.cardapio.find(c => String(c.data).slice(0, 10) === hoje);
+  const box = $("#refeicoes");
+  if (!d) box.innerHTML = `<div class="vazio">Nenhum cardápio para hoje.<br>Diga <i>"monta o cardápio da semana"</i> e eu planejo tudo, com a lista de compras.</div>`;
+  else box.innerHTML = [["🥗", "Almoço", d.almoco], ["🍲", "Jantar", d.jantar]].filter(r => r[2])
+    .map(r => `<div class="refeicao"><div class="ic">${r[0]}</div><div><div class="r">${r[1]}</div><div class="p">${esc(r[2])}</div></div></div>`).join("");
+  const prox = dados.cardapio.filter(c => String(c.data).slice(0, 10) > hoje).sort((a, b) => String(a.data) < String(b.data) ? -1 : 1).slice(0, 2);
+  $("#cardProx").innerHTML = prox.map(c => `<div><b>${rotuloDia(new Date(String(c.data).slice(0, 10) + "T12:00"))}:</b> ${esc(c.jantar || c.almoco)}</div>`).join("");
+}
+
+// ================= Listas (compras, tarefas, lembretes) =================
+let abaAtual = "compras";
+document.querySelectorAll(".abas button").forEach(b => b.onclick = () => {
+  abaAtual = b.dataset.aba; document.querySelectorAll(".abas button").forEach(x => x.classList.toggle("on", x === b)); renderLista();
+});
+function renderLista() {
+  const box = $("#lista"), inp = $("#addTx");
+  $("#addForm").style.display = abaAtual === "lembretes" ? "none" : "";
+  if (abaAtual === "compras") {
+    inp.placeholder = "Adicionar à lista de compras…";
+    const l = dados.compras.slice().sort((a, b) => a.comprado - b.comprado);
+    box.innerHTML = l.length ? l.map(i => `<div class="item ${i.comprado ? "ok" : ""}" data-id="${i.id}"><span class="ck">${i.comprado ? "✓" : ""}</span><span class="tx">${esc(i.item)}</span>${i.quem ? `<span class="q">${esc(i.quem)}</span>` : ""}</div>`).join("")
+      : '<div class="vazio">Lista vazia! 🎉<br>Diga <i>"coloca leite e ovos na lista"</i>.</div>';
+  } else if (abaAtual === "tarefas") {
+    inp.placeholder = membros().length ? `Tarefa (ex.: "Pedro: lavar a louça")` : "Adicionar tarefa…";
+    const grupos = {};
+    for (const t of dados.tarefas) (grupos[t.pessoa || "Todos"] ||= []).push(t);
+    const nomes = Object.keys(grupos);
+    box.innerHTML = nomes.length ? nomes.map(n => `<div class="pessoa">${esc(n)} · ${grupos[n].filter(t => t.feito).length}/${grupos[n].length} ⭐</div>` +
+      grupos[n].map(t => `<div class="item ${t.feito ? "ok" : ""}" data-id="${t.id}"><span class="ck">${t.feito ? "✓" : ""}</span><span class="tx">${esc(t.texto)}</span></div>`).join("")).join("")
+      : '<div class="vazio">Sem tarefas.<br>Diga <i>"tarefa para o Pedro: arrumar o quarto"</i>.</div>';
+  } else {
+    const l = lembretes.slice().sort((a, b) => a.quando - b.quando);
+    box.innerHTML = l.length ? l.map(r => `<div class="item" data-id="${r.id}"><span style="font-size:20px">${r.alarme ? "⏰" : "🔔"}</span><span class="tx">${esc(r.texto)}<div style="font-size:12px;color:var(--soft)">${rotuloDia(new Date(r.quando))} às ${fmtHora(new Date(r.quando))}${r.repetir && r.repetir !== "nao" ? " · " + r.repetir.replace("_", " ") : ""}</div></span><button class="q" data-del="${r.id}">apagar</button></div>`).join("")
+      : '<div class="vazio">Sem lembretes.<br>Diga <i>"me lembra do remédio todo dia às 8"</i>.</div>';
+  }
+}
+$("#lista").onclick = e => {
+  const del = e.target.closest("[data-del]");
+  if (del) { lembretes = lembretes.filter(l => l.id != del.dataset.del); gravar("lembretes", lembretes); renderLista(); return; }
+  const el = e.target.closest(".item"); if (!el) return;
+  if (abaAtual === "compras") alterar("compras", l => l.map(i => i.id == el.dataset.id ? Object.assign(i, { comprado: !i.comprado }) : i));
+  if (abaAtual === "tarefas") alterar("tarefas", l => l.map(t => {
+    if (t.id == el.dataset.id) { t.feito = !t.feito; if (t.feito) som.aviso(); }
+    return t;
+  }));
+};
+$("#addForm").onsubmit = e => {
+  e.preventDefault(); const t = $("#addTx").value.trim(); if (!t) return; $("#addTx").value = ""; $("#addTx").blur();
+  if (abaAtual === "compras") alterar("compras", l => l.concat({ id: novoId(), item: t, comprado: false, quem: "", quando: new Date().toISOString() }));
+  else {
+    const m = t.match(/^([^:]{1,20}):\s*(.+)$/);
+    alterar("tarefas", l => l.concat({ id: novoId(), texto: m ? m[2] : t, pessoa: m ? m[1].trim() : "", feito: false, quando: new Date().toISOString() }));
+  }
+};
+
+// ================= Mural =================
+function renderMural() {
+  const l = dados.recados.slice().sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
+  $("#notas").innerHTML = l.length ? l.map((r, i) => `<div class="nota c${(Number(r.cor) || i) % 5}"><button class="x" data-id="${r.id}" aria-label="Apagar">✕</button>${r.para ? `<div style="font-family:Nunito;font-size:11px;font-weight:800;opacity:.6;text-transform:uppercase">Para ${esc(r.para)}</div>` : ""}${esc(r.texto)}<div class="de">${r.de ? "— " + esc(r.de) : ""}</div></div>`).join("")
+    : `<div class="nota c0" style="grid-column:span 2">Deixe recados para a família!<div class="de">Diga "deixa um recado pro Pedro…"</div></div>`;
+}
+$("#notas").onclick = e => { const b = e.target.closest(".x"); if (b) alterar("recados", l => l.filter(r => r.id != b.dataset.id)); };
+
+function renderDados() { renderLista(); renderMural(); renderCardapio(); renderContagens(); }
+
+// ================= Você sabia? (gerado uma vez por dia) =================
+async function cartaoDoDia() {
+  const hoje = dataISO(new Date());
+  let c = ler("cartao", null);
+  if (!c || c.dia !== hoje) {
+    if (!cfg.geminiKey) { $("#curiosidade").textContent = "Configure a chave do Gemini para ganhar uma curiosidade nova todo dia."; return; }
+    try {
+      const j = await gemini({
+        contents: [{ role: "user", parts: [{ text: `Hoje é ${new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Responda só JSON com as chaves: "curiosidade" (fato curioso, verdadeiro e surpreendente, 1 a 2 frases, bom para família com crianças, de preferência ligado a comida, natureza ou ciência), "piada" (piada infantil curta brasileira, pergunta e resposta), "frase" (frase inspiradora curta, com o autor), "data" (data comemorativa de hoje no Brasil, ou "").` }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 1 }
+      });
+      c = Object.assign({ dia: hoje }, JSON.parse(textoDe(j.candidates?.[0]?.content)));
+      gravar("cartao", c);
+    } catch (e) { console.warn("cartão", e); return; }
+  }
+  $("#curiosidade").className = ""; $("#curiosidade").textContent = (c.data ? `🎉 Hoje é ${c.data}! ` : "") + c.curiosidade;
+  $("#piada").style.display = c.piada ? "" : "none"; $("#piada").textContent = "😄 " + (c.piada || "");
+  $("#frase").textContent = c.frase || "";
+}
+
+// ================= Timers e lembretes =================
+function renderTimers() {
+  const tem = timers.length > 0;
+  $("#timersBox").style.display = tem ? "" : "none"; $("#saber").style.display = tem ? "none" : "flex";
+  const agora = Date.now();
+  $("#timers").innerHTML = timers.map(t => {
+    const rest = (t.fim - agora) / 1000, pct = Math.max(0, Math.min(100, 100 * (1 - rest / t.total)));
+    return `<div class="timer ${t.tocando ? "tocando" : ""}" data-id="${t.id}"><span class="n">${esc(t.nome)}</span><span class="t">${t.tocando ? "Pronto!" : fmtDur(rest)}</span><span class="bar" style="width:${pct}%"></span></div>`;
+  }).join("");
+  $("#descTimers").innerHTML = timers.map(t => `<div>⏲️ ${esc(t.nome)} ${t.tocando ? "pronto!" : fmtDur((t.fim - agora) / 1000)}</div>`).join("");
+}
+$("#timers").onclick = e => { const el = e.target.closest(".timer.tocando"); if (el) pararAlarme(); };
+function criarTimer(nome, segundos) {
+  const t = { id: novoId(), nome: nome || "timer", total: segundos, fim: Date.now() + segundos * 1000 };
+  timers.push(t); gravar("timers", timers); renderTimers(); return t;
+}
+function proximaOcorrencia(l) {
+  const d = new Date(l.quando);
+  do {
+    if (l.repetir === "diario") d.setDate(d.getDate() + 1);
+    else if (l.repetir === "semanal") d.setDate(d.getDate() + 7);
+    else if (l.repetir === "dias_uteis") { do d.setDate(d.getDate() + 1); while ([0, 6].includes(d.getDay())); }
+    else return null;
+  } while (d.getTime() <= Date.now());
+  return d.getTime();
+}
+
+// ================= Avisos falados =================
+const fila = [];
+function anunciar(texto) { fila.push(texto); processarFila(); }
+async function processarFila() {
+  if (processarFila.on || estado !== "ocioso") return;
+  processarFila.on = true;
+  while (fila.length && !ocupado) {
+    const t = fila.shift(); mostrarAssist("falando", "", t); await pausarWake(); await falar(t);
+  }
+  processarFila.on = false;
+  if (!ocupado) { setEstado("ocioso"); esconderAssist(6000); await retomarWake(); }
+}
+function mostrarAviso(emoji, texto, sub = "Toque para fechar") {
+  $("#avisoEmoji").textContent = emoji; $("#avisoTx").textContent = texto; $("#avisoSub").textContent = sub;
+  $("#aviso").classList.add("on"); acordar();
+  clearTimeout(mostrarAviso._t); mostrarAviso._t = setTimeout(fecharAviso, 90000);
+}
+function fecharAviso() { $("#aviso").classList.remove("on"); }
+$("#aviso").onclick = () => { if (alarmeLoop) pararAlarme(); else fecharAviso(); };
+
+const ehNoite = () => { const [a, b] = cfg.noite.split("-").map(Number), h = new Date().getHours(); return !isNaN(a) && !isNaN(b) && (a > b ? (h >= a || h < b) : (h >= a && h < b)); };
+const avisados = new Set(ler("avisados", []));
+function tick() {
+  const agora = new Date();
+  const hm = fmtHora(agora);
+  $("#hora").textContent = hm; $("#descHora").textContent = hm;
+  const dl = agora.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  $("#descData").textContent = dl;
+  $("#dataLonga").innerHTML = esc(dl) + (clima ? ` · <b>${wmo(clima.current.weather_code, clima.current.is_day)[0]} ${Math.round(clima.current.temperature_2m)}°</b>` : "");
+  $("#saudacao").innerHTML = `${periodo()}${cfg.familia ? `, <span>família ${esc(cfg.familia)}</span>` : "!"}`;
+
+  for (const t of timers) if (!t.tocando && t.fim <= agora.getTime()) {
+    t.tocando = true; gravar("timers", timers); alarme(true);
+    mostrarAviso("⏲️", `${t.nome[0].toUpperCase() + t.nome.slice(1)} está pronto!`, "Diga \"para!\" ou toque na tela");
+    setTimeout(() => { if (timers.some(x => x.id === t.id)) anunciar(`O timer ${t.nome} terminou.`); }, 2000);
+  }
+  let mudou = false;
+  for (const l of lembretes) if (l.quando <= agora.getTime() && !l.disparado) {
+    l.disparado = true; mudou = true;
+    if (l.alarme) { alarme(true); mostrarAviso("⏰", l.texto, "Diga \"para!\" ou toque na tela"); }
+    else { som.aviso(); mostrarAviso("🔔", l.texto); }
+    anunciar(`Lembrete: ${l.texto}.`);
+    const prox = proximaOcorrencia(l); if (prox) { l.quando = prox; l.disparado = false; }
+  }
+  if (mudou) { lembretes = lembretes.filter(l => !l.disparado); gravar("lembretes", lembretes); renderLista(); }
+  if (!ehNoite()) for (const e of eventos) {
+    const falta = (new Date(e.inicio) - agora) / 60000, chave = e.titulo + e.inicio;
+    if (!e.diaInteiro && falta > 0 && falta <= 15 && !avisados.has(chave)) {
+      avisados.add(chave); gravar("avisados", [...avisados].slice(-60));
+      som.aviso(); anunciar(`Atenção: em ${Math.round(falta)} minutos tem ${e.titulo}.`);
+    }
+  }
+  renderTimers();
+  document.body.classList.toggle("noite", ehNoite() && estado === "ocioso");
+  verificarDescanso();
+}
+
+// ================= Porta-retrato (descanso) =================
+let fotos = [], fotoIdx = 0, fotoTimer = null;
+async function carregarFotos() {
+  if (!cfg.scriptUrl) return;
+  try { fotos = ((await scriptGet({ acao: "fotos" })).fotos || []).sort(() => Math.random() - .5); } catch (e) { console.warn("fotos", e); }
+}
+const fotoCache = new Map();
+async function fotoUrl(id) {
+  if (fotoCache.has(id)) return fotoCache.get(id);
+  const j = await scriptGet({ acao: "foto", id });
+  const bin = atob(j.b64), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: j.mime }));
+  if (fotoCache.size > 12) { const [k, v] = fotoCache.entries().next().value; URL.revokeObjectURL(v); fotoCache.delete(k); }
+  fotoCache.set(id, url); return url;
+}
+async function proximaFoto() {
+  const camadas = document.querySelectorAll("#descanso .foto");
+  if (!fotos.length) {
+    const c = ler("cartao", null);
+    $("#descFrase").textContent = c?.frase || "Lar é onde a gente se encontra. 💛";
+    return;
+  }
+  $("#descFrase").textContent = "";
+  try {
+    const url = await fotoUrl(fotos[fotoIdx++ % fotos.length]);
+    const nova = camadas[fotoIdx % 2], velha = camadas[(fotoIdx + 1) % 2];
+    nova.style.backgroundImage = `url(${url})`; nova.classList.remove("vis"); void nova.offsetWidth; nova.classList.add("vis"); velha.classList.remove("vis");
+  } catch (e) { console.warn("foto", e); }
+}
+function verificarDescanso() {
+  const min = Number(cfg.descanso);
+  const pode = min > 0 && estado === "ocioso" && !receita && !alarmeLoop && !$("#aviso").classList.contains("on") && !$("#cfg").classList.contains("on");
+  if (pode && Date.now() - ultimaAtividade > min * 60000 && !$("#descanso").classList.contains("on")) {
+    $("#descanso").classList.add("on"); proximaFoto(); fotoTimer = setInterval(proximaFoto, 25000);
+  }
+}
+function acordar() {
+  ultimaAtividade = Date.now();
+  if ($("#descanso").classList.contains("on")) { $("#descanso").classList.remove("on"); clearInterval(fotoTimer); }
+}
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, acordar, true));
+
+// ================= Receita =================
+function renderReceita() {
+  const box = $("#receita");
+  if (!receita) { box.classList.remove("on"); return; }
+  box.classList.add("on"); acordar();
+  $("#recTit").textContent = receita.titulo;
+  $("#recMeta").innerHTML = [receita.porcoes && `🍽️ ${receita.porcoes} porções`, receita.tempo && `⏱️ ${receita.tempo}`, receita.dificuldade && `👩‍🍳 ${receita.dificuldade}`].filter(Boolean).map(t => `<span class="pill">${esc(t)}</span>`).join("");
+  receita.marcados ||= [];
+  $("#recIng").innerHTML = receita.ingredientes.map((i, k) => `<div class="item ${receita.marcados.includes(k) ? "ok" : ""}" data-k="${k}"><span class="ck">${receita.marcados.includes(k) ? "✓" : ""}</span><span class="tx">${esc(i)}</span></div>`).join("");
+  $("#recPassos").innerHTML = receita.passos.map((_, k) => `<i class="${k < receita.passo ? "feito" : k === receita.passo ? "atual" : ""}"></i>`).join("");
+  $("#recNum").textContent = `Passo ${receita.passo + 1} de ${receita.passos.length}`;
+  const passo = receita.passos[receita.passo];
+  $("#recPasso").textContent = passo;
+  const dica = (receita.dicas || [])[receita.passo];
+  $("#recDica").style.display = dica ? "" : "none"; $("#recDica span").textContent = dica || "";
+  const m = passo.match(/(\d+)\s*(?:a\s*\d+\s*)?(minutos?|min\b|horas?)/i);
+  const btn = $("#recTimer");
+  if (m) { const seg = Number(m[1]) * (/hora/i.test(m[2]) ? 3600 : 60); btn.style.display = ""; btn.textContent = `⏲️ Timer ${m[1]} ${/hora/i.test(m[2]) ? "h" : "min"}`; btn.onclick = () => { criarTimer(receita.titulo.split(" ").slice(0, 3).join(" "), seg); som.ok(); toast("Timer criado!"); }; }
+  else btn.style.display = "none";
+}
+$("#recIng").onclick = e => {
+  const el = e.target.closest(".item"); if (!el || !receita) return;
+  const k = Number(el.dataset.k); receita.marcados = receita.marcados.includes(k) ? receita.marcados.filter(x => x !== k) : receita.marcados.concat(k);
+  gravar("receita", receita); renderReceita();
+};
+function moverReceita(d) {
+  if (!receita) return null;
+  receita.passo = Math.max(0, Math.min(receita.passos.length - 1, receita.passo + d));
+  gravar("receita", receita); renderReceita(); return receita.passos[receita.passo];
+}
+function fecharReceita() { receita = null; gravar("receita", null); renderReceita(); }
+$("#recAnt").onclick = () => moverReceita(-1);
+$("#recProx").onclick = () => moverReceita(1);
+$("#recFechar").onclick = fecharReceita;
+
+// ================= Ferramentas do Gemini =================
+const S = (props, req) => ({ type: "object", properties: props, required: req });
+const str = d => ({ type: "string", description: d }), int = d => ({ type: "integer", description: d }), lst = d => ({ type: "array", items: { type: "string" }, description: d });
+const FERRAMENTAS = [
+  { name: "resumo_do_dia", description: "Reúne tudo de hoje: clima, agenda, aniversários, lembretes, timers, cardápio, recados, compras pendentes e tarefas. Use para 'bom dia', 'como está meu dia', 'o que tem hoje'." },
+  { name: "criar_timer", description: "Cria um timer de cozinha.", parameters: S({ nome: str("ex.: arroz, forno"), segundos: int("duração") }, ["nome", "segundos"]) },
+  { name: "cancelar_timer", description: "Cancela timer pelo nome, ou 'todos'.", parameters: S({ nome: str("") }, ["nome"]) },
+  { name: "listar_timers", description: "Timers ativos e tempo restante." },
+  { name: "parar_alarme", description: "Silencia alarmes tocando." },
+  { name: "parar_tudo", description: "Encerra tudo o que está acontecendo: alarmes, avisos na tela, falas pendentes e, se pedido ou se for 'para tudo'/'silêncio total', o rádio. Também fecha a receita se pedirem.", parameters: S({ radio: { type: "boolean", description: "true para desligar o rádio também" }, receita: { type: "boolean", description: "true para fechar a receita aberta" } }) },
+  { name: "criar_lembrete", description: "Lembrete falado em hora marcada. Pode repetir (remédios, rotina) e pode ser alarme/despertador com toque contínuo.", parameters: S({ texto: str(""), quando: str("data e hora local ISO 8601"), repetir: { type: "string", enum: ["nao", "diario", "dias_uteis", "semanal"] }, alarme: { type: "boolean", description: "true para despertador que toca até alguém desligar" } }, ["texto", "quando"]) },
+  { name: "listar_lembretes", description: "Lembretes pendentes." },
+  { name: "apagar_lembrete", description: "Apaga lembretes que contenham o trecho.", parameters: S({ trecho: str("") }, ["trecho"]) },
+  { name: "compras_adicionar", description: "Adiciona itens à lista de compras da família.", parameters: S({ itens: lst("cada item com quantidade se dita"), quem: str("quem pediu, se souber") }, ["itens"]) },
+  { name: "compras_remover", description: "Remove itens da lista de compras (ou marca como comprado).", parameters: S({ itens: lst(""), marcar_comprado: { type: "boolean" } }, ["itens"]) },
+  { name: "compras_ler", description: "Lê a lista de compras." },
+  { name: "compras_limpar", description: "Apaga os itens já comprados, ou tudo se tudo=true.", parameters: S({ tudo: { type: "boolean" } }) },
+  { name: "tarefa_adicionar", description: "Cria tarefa de casa, opcionalmente para uma pessoa.", parameters: S({ texto: str(""), pessoa: str("nome da pessoa ou vazio") }, ["texto"]) },
+  { name: "tarefa_concluir", description: "Marca tarefa como feita.", parameters: S({ trecho: str(""), pessoa: str("") }, ["trecho"]) },
+  { name: "tarefas_ler", description: "Lista tarefas e quem já fez." },
+  { name: "tarefas_limpar", description: "Apaga tarefas concluídas." },
+  { name: "recado_deixar", description: "Deixa um recado no mural da família.", parameters: S({ texto: str(""), para: str("destinatário ou vazio"), de: str("quem deixou, se souber") }, ["texto"]) },
+  { name: "recados_ler", description: "Lê os recados do mural, opcionalmente só os de uma pessoa.", parameters: S({ para: str("") }) },
+  { name: "recado_apagar", description: "Apaga recados que contenham o trecho.", parameters: S({ trecho: str("") }, ["trecho"]) },
+  { name: "cardapio_definir", description: "Grava o cardápio de um ou mais dias (substitui os dias informados).", parameters: S({ dias: { type: "array", items: S({ data: str("YYYY-MM-DD"), almoco: str(""), jantar: str("") }, ["data"]) } }, ["dias"]) },
+  { name: "cardapio_ler", description: "Lê o cardápio planejado." },
+  { name: "contagem_criar", description: "Cria contagem regressiva no painel (viagem, festa, férias).", parameters: S({ titulo: str(""), data: str("YYYY-MM-DD"), emoji: str("um emoji") }, ["titulo", "data"]) },
+  { name: "contagem_apagar", description: "Apaga contagem regressiva.", parameters: S({ trecho: str("") }, ["trecho"]) },
+  { name: "consultar_agenda", description: "Compromissos da Google Agenda.", parameters: S({ dias: int("1 a 30") }) },
+  { name: "criar_evento", description: "Cria compromisso na Google Agenda.", parameters: S({ titulo: str(""), inicio: str("data e hora local ISO 8601"), duracao_minutos: int(""), dia_inteiro: { type: "boolean" } }, ["titulo", "inicio"]) },
+  { name: "anunciar_para_casa", description: "Anúncio para toda a casa: toca um chamado, mostra em tela cheia e fala alto. Ex.: 'avisa que o jantar está pronto'.", parameters: S({ texto: str("mensagem curta"), emoji: str("") }, ["texto"]) },
+  { name: "tocar_radio", description: "Toca rádio online pelo nome ou estilo.", parameters: S({ nome: str("") }, ["nome"]) },
+  { name: "parar_radio", description: "Desliga o rádio." },
+  { name: "volume_radio", description: "Volume do rádio 0 a 100.", parameters: S({ nivel: int("") }, ["nivel"]) },
+  { name: "mostrar_receita", description: "Abre em tela cheia uma receita ou técnica (ex.: como empanar) no modo passo a passo. Chame de novo com manter_passo=true para atualizar a receita aberta depois de trocas ou mudança de porções.", parameters: S({ titulo: str(""), porcoes: int(""), tempo: str("ex.: 40 min"), dificuldade: str("fácil, média ou difícil"), ingredientes: lst("com quantidade em medida caseira e gramas/ml"), passos: lst("passos curtos, com tempos em minutos quando houver"), dicas: lst("uma dica por passo, mesma ordem dos passos: como saber que deu certo (cor, cheiro, textura, tempo) ou um cuidado. Use \"\" se não houver"), manter_passo: { type: "boolean", description: "true ao atualizar a receita já aberta, mantendo o passo atual" } }, ["titulo", "ingredientes", "passos"]) },
+  { name: "navegar_receita", description: "Navega na receita aberta e devolve o texto do passo para você ler.", parameters: S({ acao: { type: "string", enum: ["proximo", "anterior", "repetir", "ir", "ingredientes", "fechar"] }, passo: int("para acao=ir") }, ["acao"]) },
+  { name: "porta_retrato", description: "Liga o modo porta-retrato com as fotos da família." },
+  { name: "consultar_clima", description: "Clima atual e dos próximos dias." },
+  { name: "pesquisar_web", description: "Pesquisa no Google fatos atuais: notícias, jogos, preços, horários, eventos.", parameters: S({ pergunta: str("") }, ["pergunta"]) }
+];
+
+async function executar(nome, a) {
+  const achar = (lista, campo, trecho) => lista.filter(x => contem(String(x[campo] || ""), trecho));
+  switch (nome) {
+    case "resumo_do_dia": {
+      const hoje = dataISO(new Date());
+      return {
+        agora: new Date().toLocaleString("pt-BR"), clima: resumoClima(),
+        agenda_hoje: eventos.filter(e => mesmoDia(new Date(e.inicio), new Date()) && !ehNiver(e)).map(e => ({ titulo: e.titulo, hora: e.diaInteiro ? "dia todo" : fmtHora(new Date(e.inicio)) })),
+        aniversarios_proximos: eventos.filter(ehNiver).map(e => ({ titulo: e.titulo, em_dias: diasAte(dataISO(new Date(e.inicio))) })).filter(e => e.em_dias >= 0 && e.em_dias <= 7),
+        lembretes_hoje: lembretes.filter(l => mesmoDia(new Date(l.quando), new Date())).map(l => ({ texto: l.texto, hora: fmtHora(new Date(l.quando)) })),
+        timers: timers.map(t => ({ nome: t.nome, restante: fmtDur((t.fim - Date.now()) / 1000) })),
+        cardapio_hoje: dados.cardapio.find(c => String(c.data).slice(0, 10) === hoje) || null,
+        recados: dados.recados.map(r => ({ texto: r.texto, para: r.para, de: r.de })),
+        compras_pendentes: dados.compras.filter(i => !i.comprado).length,
+        tarefas_pendentes: dados.tarefas.filter(t => !t.feito).map(t => ({ texto: t.texto, pessoa: t.pessoa })),
+        contagens: dados.contagens.map(c => ({ titulo: c.titulo, em_dias: diasAte(String(c.data).slice(0, 10)) }))
+      };
+    }
+    case "criar_timer": { const t = criarTimer(a.nome, a.segundos); return { ok: true, termina_as: fmtHora(new Date(t.fim)) }; }
+    case "cancelar_timer": {
+      const antes = timers.length; timers = a.nome === "todos" ? [] : timers.filter(t => !contem(t.nome, a.nome));
+      if (!timers.some(t => t.tocando)) alarme(false); gravar("timers", timers); renderTimers(); return { cancelados: antes - timers.length };
+    }
+    case "listar_timers": return timers.map(t => ({ nome: t.nome, restante: fmtDur((t.fim - Date.now()) / 1000), pronto: !!t.tocando }));
+    case "parar_alarme": pararAlarme(); return { ok: true };
+    case "parar_tudo":
+      pararTudo(!!a.radio); if (a.receita) fecharReceita();
+      return { ok: true, observacao: "responda com texto vazio, ou no máximo 'Pronto.'" };
+    case "criar_lembrete": {
+      const d = new Date(a.quando); if (isNaN(d)) return { erro: "data inválida" };
+      lembretes.push({ id: novoId(), texto: a.texto, quando: d.getTime(), repetir: a.repetir || "nao", alarme: !!a.alarme });
+      gravar("lembretes", lembretes); abaAtual = "lembretes"; document.querySelectorAll(".abas button").forEach(x => x.classList.toggle("on", x.dataset.aba === "lembretes")); renderLista();
+      return { ok: true, quando: d.toLocaleString("pt-BR"), repetir: a.repetir || "nao" };
+    }
+    case "listar_lembretes": return lembretes.map(l => ({ texto: l.texto, quando: new Date(l.quando).toLocaleString("pt-BR"), repetir: l.repetir, alarme: l.alarme }));
+    case "apagar_lembrete": { const antes = lembretes.length; lembretes = lembretes.filter(l => !contem(l.texto, a.trecho)); gravar("lembretes", lembretes); renderLista(); return { apagados: antes - lembretes.length }; }
+    case "compras_adicionar":
+      await alterar("compras", l => l.concat((a.itens || []).filter(it => !l.some(x => !x.comprado && contem(x.item, it))).map(it => ({ id: novoId(), item: it, comprado: false, quem: a.quem || "", quando: new Date().toISOString() }))));
+      mostrarAba("compras"); return { ok: true, total_pendentes: dados.compras.filter(i => !i.comprado).length };
+    case "compras_remover":
+      await alterar("compras", l => a.marcar_comprado ? l.map(i => a.itens.some(it => contem(i.item, it)) ? Object.assign(i, { comprado: true }) : i) : l.filter(i => !a.itens.some(it => contem(i.item, it))));
+      mostrarAba("compras"); return { ok: true };
+    case "compras_ler": return dados.compras.map(i => ({ item: i.item, comprado: i.comprado, quem: i.quem }));
+    case "compras_limpar": await alterar("compras", l => a.tudo ? [] : l.filter(i => !i.comprado)); return { ok: true };
+    case "tarefa_adicionar":
+      await alterar("tarefas", l => l.concat({ id: novoId(), texto: a.texto, pessoa: a.pessoa || "", feito: false, quando: new Date().toISOString() }));
+      mostrarAba("tarefas"); return { ok: true };
+    case "tarefa_concluir": {
+      let n = 0;
+      await alterar("tarefas", l => l.map(t => { if (!t.feito && contem(t.texto, a.trecho) && (!a.pessoa || contem(t.pessoa || "", a.pessoa))) { t.feito = true; n++; } return t; }));
+      if (n) som.aviso(); mostrarAba("tarefas"); return { concluidas: n };
+    }
+    case "tarefas_ler": return dados.tarefas.map(t => ({ texto: t.texto, pessoa: t.pessoa, feito: t.feito }));
+    case "tarefas_limpar": await alterar("tarefas", l => l.filter(t => !t.feito)); return { ok: true };
+    case "recado_deixar":
+      await alterar("recados", l => l.concat({ id: novoId(), texto: a.texto, para: a.para || "", de: a.de || "", quando: new Date().toISOString(), cor: Math.floor(Math.random() * 5) }));
+      return { ok: true };
+    case "recados_ler": return (a.para ? achar(dados.recados, "para", a.para) : dados.recados).map(r => ({ texto: r.texto, para: r.para, de: r.de, quando: new Date(r.quando).toLocaleString("pt-BR") }));
+    case "recado_apagar": { const antes = dados.recados.length; await alterar("recados", l => l.filter(r => !contem(r.texto, a.trecho))); return { apagados: antes - dados.recados.length }; }
+    case "cardapio_definir":
+      await alterar("cardapio", l => {
+        const datas = new Set(a.dias.map(d => d.data)), corte = dataISO(new Date(Date.now() - 3 * 864e5));
+        return l.filter(c => !datas.has(String(c.data).slice(0, 10)) && String(c.data).slice(0, 10) >= corte).concat(a.dias.map(d => ({ data: d.data, almoco: d.almoco || "", jantar: d.jantar || "" })));
+      });
+      return { ok: true, dias: a.dias.length };
+    case "cardapio_ler": return dados.cardapio;
+    case "contagem_criar": await alterar("contagens", l => l.concat({ id: novoId(), titulo: a.titulo, data: a.data, emoji: a.emoji || "⏳" })); return { ok: true, em_dias: diasAte(a.data) };
+    case "contagem_apagar": await alterar("contagens", l => l.filter(c => !contem(c.titulo, a.trecho))); return { ok: true };
+    case "consultar_agenda": {
+      const j = await scriptGet({ dias: Math.min(30, Math.max(1, a.dias || 7)) });
+      return (j.eventos || []).map(e => ({ titulo: e.titulo, inicio: new Date(e.inicio).toLocaleString("pt-BR"), dia_inteiro: e.diaInteiro, local: e.local, agenda: e.agenda }));
+    }
+    case "criar_evento": {
+      const ini = new Date(a.inicio); if (isNaN(ini)) return { erro: "data inválida" };
+      const fim = new Date(ini.getTime() + (a.duracao_minutos || 60) * 60000);
+      const j = await scriptGet({ acao: "criar", titulo: a.titulo, inicio: ini.toISOString(), fim: fim.toISOString(), diaInteiro: a.dia_inteiro ? "1" : "" });
+      setTimeout(atualizarAgenda, 1500); return j;
+    }
+    case "anunciar_para_casa":
+      som.aviso(); mostrarAviso(a.emoji || "📣", a.texto);
+      setTimeout(() => anunciar(`Atenção, família! ${a.texto}`), 1300); return { ok: true, observacao: "o anúncio será falado logo depois da sua resposta; responda só 'Pronto, avisei.'" };
+    case "tocar_radio": {
+      const st = await buscarRadio(a.nome); if (!st) return { erro: "não achei essa rádio com stream seguro" };
+      await tocarRadio(st); return { tocando: st.nome };
+    }
+    case "parar_radio": pararRadio(); return { ok: true };
+    case "volume_radio": radioVol = Math.max(0, Math.min(1, a.nivel / 100)); gravar("radioVol", radioVol); radio.volume = radioVol; return { volume: a.nivel };
+    case "mostrar_receita": {
+      const anterior = a.manter_passo && receita ? receita : null;
+      const passos = a.passos || [];
+      receita = {
+        titulo: a.titulo, porcoes: a.porcoes, tempo: a.tempo, dificuldade: a.dificuldade, ingredientes: a.ingredientes || [], passos, dicas: a.dicas || [],
+        passo: anterior ? Math.min(anterior.passo, passos.length - 1) : 0,
+        marcados: anterior ? (anterior.marcados || []).filter(k => k < (a.ingredientes || []).length) : []
+      };
+      gravar("receita", receita); renderReceita(); return { ok: true, total_passos: passos.length, passo_atual: receita.passo + 1 };
+    }
+    case "navegar_receita": {
+      if (!receita) return { erro: "nenhuma receita aberta" };
+      if (a.acao === "fechar") { fecharReceita(); return { ok: true }; }
+      if (a.acao === "ingredientes") return { ingredientes: receita.ingredientes };
+      const d = a.acao === "proximo" ? 1 : a.acao === "anterior" ? -1 : a.acao === "ir" && a.passo ? (a.passo - 1) - receita.passo : 0;
+      const texto = moverReceita(d);
+      return { passo: receita.passo + 1, total: receita.passos.length, texto, dica: (receita.dicas || [])[receita.passo] || "", ultimo: receita.passo === receita.passos.length - 1 };
+    }
+    case "porta_retrato": setTimeout(() => { ultimaAtividade = 0; verificarDescanso(); }, 4000); return { ok: true, fotos: fotos.length };
+    case "consultar_clima": return resumoClima();
+    case "pesquisar_web": {
+      const j = await gemini({ contents: [{ role: "user", parts: [{ text: `${a.pergunta}\n(Hoje: ${new Date().toLocaleDateString("pt-BR")}. Local: ${cfg.cidade}, Brasil. Responda em português, objetivo.)` }] }], tools: [{ google_search: {} }] });
+      return { resposta: textoDe(j.candidates?.[0]?.content) };
+    }
+  }
+  return { erro: "função desconhecida" };
+}
+function mostrarAba(aba) { abaAtual = aba; document.querySelectorAll(".abas button").forEach(x => x.classList.toggle("on", x.dataset.aba === aba)); renderLista(); }
+
+// ================= Gemini =================
+async function gemini(corpo) {
+  if (!cfg.geminiKey) throw new Error("Falta a chave do Gemini nas configurações ⚙️");
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.modelo)}:generateContent`, {
+    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey }, body: JSON.stringify(corpo)
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error?.message || `Gemini respondeu ${r.status}`);
+  return j;
+}
+const textoDe = c => (c?.parts || []).filter(p => p.text && !p.thought).map(p => p.text).join("").trim();
+function sistema() {
+  const agora = new Date();
+  return `Você é ${cfg.assistente}, a assistente da cozinha da ${cfg.familia ? "família " + cfg.familia : "família"}. Personalidade: calorosa, prestativa, bem-humorada e paciente, como um mordomo carinhoso. Crianças também falam com você: seja gentil e use linguagem simples com elas.
+${membros().length ? `Pessoas da casa: ${membros().join(", ")}.` : ""}
+Agora: ${agora.toLocaleString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })} (${isoLocal(agora)}). Cidade: ${cfg.cidade}.
+Nunca diga o seu próprio nome em voz alta: ele é a palavra que te ativa e você acabaria se chamando.
+Suas respostas são faladas em voz alta: fale português do Brasil, curto (1 a 3 frases), sem markdown, sem listas, sem emojis. Exceção: histórias, quiz, explicações pedidas e ensinar a cozinhar podem ser mais longas (mesmo assim, um passo de cada vez).
+Use as ferramentas sempre que fizer sentido. Regras:
+- Comandos de encerrar ("para", "pare", "chega", "silêncio", "desliga", "cancela", "já vi", "ok, obrigado", "pode parar"): chame parar_tudo (radio=true só se mencionarem rádio/música ou "para tudo") e não diga nada, ou só "Pronto.". Se for um timer específico ainda contando ("cancela o timer do arroz"), use cancelar_timer.
+- "Bom dia", "como está o dia", "o que tem hoje": chame resumo_do_dia e faça um resumo animado e curto (clima, compromissos, aniversários, lembretes e cardápio).
+${professora()}
+- Receitas: chame mostrar_receita com passos curtos e práticos e uma dica por passo (campo dicas), depois diga só uma frase. "Próximo", "volta", "repete" usam navegar_receita e você lê o passo e a dica.
+- Receita com o que a pessoa tem ("tenho arroz, carne e milho"): priorize esses ingredientes. Sugira 2 ou 3 pratos simples, dizendo de cada um o que mais seria preciso, e pergunte qual ela quer. Antes de abrir, confirme os básicos da despensa que a receita usa (sal, óleo, alho, cebola, temperos) perguntando "você tem…?". Para o que faltar, sugira substituto ou ofereça colocar na lista de compras (compras_adicionar).
+- Trocas e ajustes no meio da receita ("não tenho cebola", "quero fazer para 6 pessoas", "vou usar frango"): explique em voz e chame mostrar_receita de novo com a receita ajustada e manter_passo=true, para a tela ficar certa.
+- Cardápio da semana: proponha pratos variados e práticos, chame cardapio_definir com as datas reais e ofereça adicionar os ingredientes que faltam à lista de compras.
+- Quiz, adivinhas e jogos para crianças: faça uma pergunta por vez e termine com pergunta, para o microfone reabrir sozinho.
+- Datas relativas ("daqui a 20 minutos", "sexta às 9") devem virar ISO local a partir de agora.
+- Remédios e rotinas diárias: criar_lembrete com repetir. Despertador: alarme=true.
+- Fatos atuais (notícias, futebol, preços, horário de loja): pesquisar_web.
+- Você não controla luzes nem aparelhos; se pedirem, explique com gentileza que seu papel é informar, lembrar e ajudar.
+- Se o áudio estiver inaudível ou não for com você, diga só "Não entendi, pode repetir?".
+${receita ? `Receita aberta: ${receita.titulo}, passo ${receita.passo + 1} de ${receita.passos.length}.` : ""}
+${timers.length ? `Timers: ${timers.map(t => `${t.nome} (${fmtDur((t.fim - Date.now()) / 1000)})`).join(", ")}.` : ""}`;
+}
+// Como a assistente ensina, conforme a experiência escolhida nas configurações
+function professora() {
+  if (cfg.nivel === "experiente") return "- Cozinha: a pessoa cozinha bem. Seja direta: quantidades e tempos, sem explicar o básico.";
+  const base = `- Cozinha: a pessoa ${cfg.nivel === "intermediario" ? "sabe o básico, mas gosta de orientação" : "está aprendendo a cozinhar"}. Seja uma professora paciente e encorajadora:
+  · Quantidades sempre exatas, em medida caseira e em gramas ou ml ("1 colher de chá rasa, uns 5 gramas"). Para perguntas de proporção ("quanto sal para 200 gramas de arroz", "quanta água"), responda direto com o número, a medida caseira e uma dica curta.
+  · Diga como saber que deu certo pelos sentidos: cor, cheiro, som, textura e tempo aproximado ("até a cebola ficar transparente, uns 3 minutos").
+  · Explique termos na primeira vez que aparecerem (refogar, selar, al dente, empanar, fogo médio).
+  · Técnicas ("como empanar peixe", "como cozinhar ovo", "como fazer arroz soltinho", "como cortar cebola"): abra com mostrar_receita, mesmo sem ser um prato completo, com passos e dicas, para ela seguir na tela.
+  · Avise sobre segurança só quando importar: óleo quente e água, cabo da panela para dentro, carne de frango e porco bem cozida, faca e tábua.
+  · Se ela disser que algo deu errado (queimou, salgou, ficou empapado), acalme e dê a solução prática.`;
+  return base;
+}
+function aparar() {
+  while (historico.length > 18) historico.shift();
+  while (historico.length && !(historico[0].role === "user" && historico[0].parts.some(p => p.text || p.inlineData))) historico.shift();
+  let n = 0;
+  for (let i = historico.length - 1; i >= 0; i--) {
+    const h = historico[i];
+    if (h.role === "user" && h.parts.some(p => p.inlineData) && ++n > 3) h.parts = h.parts.map(p => p.inlineData ? { text: "[mensagem de voz anterior]" } : p);
+  }
+}
+async function conversar(partes) {
+  historico.push({ role: "user", parts: partes }); aparar();
+  for (let volta = 0; volta < 6; volta++) {
+    const j = await gemini({ systemInstruction: { parts: [{ text: sistema() }] }, contents: historico, tools: [{ functionDeclarations: FERRAMENTAS }], generationConfig: { temperature: 0.7 } });
+    const c = j.candidates?.[0]?.content;
+    if (!c || !c.parts) return "Desculpe, me atrapalhei. Pode repetir?";
+    c.role = "model"; historico.push(c);
+    const chamadas = c.parts.filter(p => p.functionCall);
+    if (!chamadas.length) return textoDe(c);
+    const respostas = [];
+    for (const p of chamadas) {
+      let r; try { r = await executar(p.functionCall.name, p.functionCall.args || {}); } catch (e) { r = { erro: String(e.message || e) }; }
+      respostas.push({ functionResponse: { name: p.functionCall.name, response: { resultado: r } } });
+    }
+    historico.push({ role: "user", parts: respostas });
+  }
+  return "Fiz o que pude, mas me perdi no final. Pode repetir?";
+}
+
+// ================= Interação =================
+function setEstado(e) {
+  estado = e;
+  const nomes = { ocioso: "", ouvindo: "Estou ouvindo…", pensando: "Pensando…", falando: cfg.assistente };
+  $("#assistEstado").textContent = nomes[e] || "";
+  $("#assist").className = $("#assist").className.replace(/ ?(ouvindo|pensando|falando|ocioso)/g, "") + " " + e;
+}
+function mostrarAssist(e, disse, resp) {
+  clearTimeout(esconderAssist._t); setEstado(e); acordar();
+  if (disse !== undefined) $("#voceDisse").textContent = disse;
+  if (resp !== undefined) $("#resposta").textContent = resp;
+  $("#assist").classList.add("on");
+}
+function esconderAssist(ms) { clearTimeout(esconderAssist._t); esconderAssist._t = setTimeout(() => { if (estado === "ocioso") $("#assist").classList.remove("on"); }, ms); }
+
+let ocupado = false;
+async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false) {
+  if (ocupado) return; ocupado = true; interagir.reabrir = false;
+  let resp = "";
+  try {
+    const interrompeu = interrompeuAntes || algoAcontecendo();
+    pararTudo();
+    await pausarWake();
+    let partes;
+    if (textoDigitado) { partes = [{ text: textoDigitado }]; mostrarAssist("pensando", `"${textoDigitado}"`, ""); }
+    else {
+      mostrarAssist("ouvindo", seguimento ? "Pode responder…" : "", ""); som.ouvir(); radioDuck(true);
+      // Depois de interromper algo, espera menos: se ninguém falar, era só para silenciar
+      const wav = await gravarFala(seguimento ? 7 : interrompeu ? 4 : 6); radioDuck(false);
+      if (!wav) { setEstado("ocioso"); esconderAssist(800); return; }
+      som.ok(); partes = [{ inlineData: { mimeType: "audio/wav", data: wav } }, { text: "(mensagem de voz)" }];
+      mostrarAssist("pensando", "", "");
+    }
+    resp = await conversar(partes);
+    if (!resp) { som.ok(); return; }
+    mostrarAssist("falando", undefined, resp);
+    await falar(resp);
+  } catch (e) {
+    console.error(e); resp = ""; mostrarAssist("falando", undefined, "Ops: " + (e.message || e)); toast(e.message || String(e));
+  } finally {
+    setEstado("ocioso"); ocupado = false;
+    // Interrompida com "Jarvis" no meio da fala: escuta o novo pedido
+    if (interagir.reabrir) { interagir.reabrir = false; interagir(undefined, 0, false); return; }
+    // Se a assistente terminou com uma pergunta, reabre o microfone sem precisar dizer "Jarvis"
+    if (resp.trim().endsWith("?") && !falar.foiCortada && seguimento < 4 && !fila.length) { interagir(undefined, seguimento + 1); return; }
+    esconderAssist(resp ? 8000 : 1200); await retomarWake(); processarFila();
+  }
+}
+$("#mic").onclick = () => interagir();
+$("#assist").onclick = () => { if (estado === "falando") calar(); };
+
+// ================= Palavra de ativação =================
+let porc = null, wvp = null, srWake = null, wakeLigado = false;
+// "Jarvis" sempre interrompe o que estiver acontecendo e já abre o microfone para o próximo pedido
+function aoOuvirPalavra() {
+  acordar();
+  const havia = algoAcontecendo();
+  if (havia) { pararTudo(); som.ok(); }
+  if (!ocupado) interagir(undefined, 0, havia);
+  else if (estado === "falando") interagir.reabrir = true;
+}
+async function iniciarWake() {
+  if (cfg.wake === "porcupine") {
+    if (!cfg.picoKey) { $("#dica").textContent = "Toque para falar →"; return; }
+    try {
+      const { PorcupineWorker, BuiltInKeyword } = window.PorcupineWeb;
+      wvp = window.WebVoiceProcessor.WebVoiceProcessor;
+      porc = await PorcupineWorker.create(cfg.picoKey,
+        [{ builtin: BuiltInKeyword[cfg.palavra] || BuiltInKeyword.Jarvis, sensitivity: Number(cfg.sens) || 0.6 }],
+        aoOuvirPalavra,
+        { publicPath: cfg.picoModel, forceWrite: true });
+      $("#dica").textContent = `Diga "${cfg.palavra}" ou toque →`;
+      await retomarWake();
+    } catch (e) { console.error(e); toast("A palavra de ativação falhou: " + (e.message || e), 9000); $("#dica").textContent = "Toque para falar →"; }
+  } else if (cfg.wake === "navegador") {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { toast("Este navegador não reconhece voz."); return; }
+    srWake = new SR(); srWake.lang = "pt-BR"; srWake.continuous = true; srWake.interimResults = true;
+    const alvo = cfg.assistente.toLowerCase();
+    srWake.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i][0].transcript.toLowerCase().includes(alvo)) { srWake.abort(); aoOuvirPalavra(); return; } };
+    srWake.onend = () => { if (wakeLigado) setTimeout(() => { try { srWake.start(); } catch {} }, 400); };
+    $("#dica").textContent = `Diga "${cfg.assistente}" ou toque →`;
+    await retomarWake();
+  } else $("#dica").textContent = "Toque para falar →";
+}
+// A palavra continua ativa enquanto a assistente fala, para dar para interromper dizendo "Jarvis"
+async function pausarWake() { wakeLigado = false; try { if (srWake) srWake.abort(); } catch {} }
+async function retomarWake() {
+  if (wakeLigado) return; wakeLigado = true;
+  try { if (porc && wvp && !retomarWake.inscrito) { await wvp.subscribe(porc); retomarWake.inscrito = true; } if (srWake) srWake.start(); } catch {}
+}
+
+// ================= Configurações =================
+const CAMPOS = Object.keys(PADRAO);
+function abrirCfg() { carregarVozes(); for (const k of CAMPOS) { const el = $("#c_" + k); if (el) el.value = cfg[k]; } $("#cfg").classList.add("on"); }
+$("#btnCfg").onclick = abrirCfg;
+$("#cfgFechar").onclick = () => $("#cfg").classList.remove("on");
+$("#cfgSalvar").onclick = () => {
+  for (const k of CAMPOS) { const el = $("#c_" + k); if (el) cfg[k] = typeof PADRAO[k] === "number" ? Number(el.value) : el.value.trim(); }
+  gravar("cfg", cfg); location.reload();
+};
+$("#cfgGeo").onclick = () => navigator.geolocation.getCurrentPosition(p => { $("#c_lat").value = p.coords.latitude.toFixed(4); $("#c_lon").value = p.coords.longitude.toFixed(4); }, () => toast("Não consegui ler a localização."));
+$("#cfgTeste").onclick = () => { cfg.voz = $("#c_voz").value; cfg.vel = Number($("#c_vel").value); falar(`Olá${cfg.familia ? ", família " + cfg.familia : ""}! Estou pronta para ajudar na cozinha.`); };
+
+// ================= Início =================
+async function manterTela() { try { await navigator.wakeLock.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { manterTela(); puxarDados(); } });
+
+$("#btnIniciar").onclick = async () => {
+  $("#inicio").style.display = "none";
+  try { await document.documentElement.requestFullscreen(); } catch {}
+  await audioCtx().resume(); manterTela(); carregarVozes();
+  if (!cfg.geminiKey) { abrirCfg(); toast("Cole a chave do Gemini para começar.", 8000); return; }
+  try { await mic(); } catch { toast("Libere o microfone nas permissões do Chrome."); }
+  await iniciarWake();
+  anunciar(`${periodo()}${cfg.familia ? ", família " + cfg.familia : ""}! Tudo pronto por aqui.`);
+};
+
+renderDados(); renderTimers(); renderReceita(); renderFavs(); renderAgenda();
+tick(); setInterval(tick, 1000);
+atualizarClima(); setInterval(atualizarClima, 15 * 60000);
+atualizarAgenda(); setInterval(atualizarAgenda, 10 * 60000);
+puxarDados(); setInterval(puxarDados, 2 * 60000);
+cartaoDoDia(); setInterval(cartaoDoDia, 30 * 60000);
+carregarFotos(); setInterval(carregarFotos, 6 * 3600000);
+</script>
+</body>
+</html>
