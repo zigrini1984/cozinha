@@ -300,10 +300,8 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
     <label>Pessoas da casa (vírgula)<input id="c_membros" placeholder="Ana, Pedro, Lucas"></label>
     <label>Voz<select id="c_voz"></select></label>
     <label>Experiência na cozinha<select id="c_nivel"><option value="iniciante">Iniciante: me ensine tudo</option><option value="intermediario">Intermediário</option><option value="experiente">Experiente: só o essencial</option></select></label>
-    <label>Ativação por voz<select id="c_wake"><option value="porcupine">Porcupine (recomendado)</option><option value="navegador">Reconhecimento do Chrome</option><option value="nenhum">Só toque</option></select></label>
-    <label>Palavra (Porcupine)<select id="c_palavra"><option>Jarvis</option><option>Computer</option><option>Bumblebee</option><option>Terminator</option><option>Picovoice</option></select></label>
-    <label>Picovoice AccessKey<input id="c_picoKey" type="password"></label>
-    <label>Sensibilidade (0.3 a 0.9)<input id="c_sens" type="number" step="0.05"></label>
+    <label>Ativação por voz<select id="c_wake"><option value="oww">"Ei, Jarvis" (recomendado)</option><option value="navegador">Reconhecimento do Chrome</option><option value="nenhum">Só toque</option></select></label>
+    <label>Exigência do "Ei, Jarvis" (0.3 dispara fácil, 0.8 exige mais)<input id="c_sens" type="number" step="0.05"></label>
     <label>Velocidade da voz (0.8 a 1.4)<input id="c_vel" type="number" step="0.05"></label>
     <label>Modo noturno (horas)<input id="c_noite" placeholder="22-6"></label>
     <label>URL do Apps Script<input id="c_scriptUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
@@ -312,16 +310,14 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
     <label>Latitude<input id="c_lat" type="number" step="0.0001"></label>
     <label>Longitude<input id="c_lon" type="number" step="0.0001"></label>
     <label>Cidade<input id="c_cidade"></label>
-    <label style="grid-column:span 2">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
-    <label>Modelo Porcupine (.pv)<input id="c_picoModel"></label>
+    <label style="grid-column:span 3">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
   </div>
   <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button></div>
 </div>
 <div id="toast"></div>
 <audio id="radio" preload="none"></audio>
 
-<script src="https://cdn.jsdelivr.net/npm/@picovoice/web-voice-processor@4.0.10/dist/iife/index.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@picovoice/porcupine-web@4.0.1/dist/iife/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -329,14 +325,14 @@ const $ = s => document.querySelector(s);
 // ================= Configuração e estado =================
 const PADRAO = {
   geminiKey: "", modelo: "gemini-flash-latest", assistente: "Jarvis", familia: "", membros: "",
-  wake: "porcupine", palavra: "Jarvis", picoKey: "", sens: 0.6,
-  picoModel: "https://cdn.jsdelivr.net/gh/Picovoice/porcupine@v4.0/lib/common/porcupine_params.pv",
+  wake: "oww", sens: 0.5,
   scriptUrl: "", scriptToken: "", lat: -23.5505, lon: -46.6333, cidade: "São Paulo",
   voz: "", vel: 1.05, noite: "22-6", favoritas: "", descanso: 5, nivel: "iniciante"
 };
 function ler(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } }
 function gravar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 const cfg = Object.assign({}, PADRAO, ler("cfg", {}));
+if (cfg.wake === "porcupine") cfg.wake = "oww";
 const membros = () => cfg.membros.split(",").map(s => s.trim()).filter(Boolean);
 
 let timers = ler("timers", []);
@@ -1205,7 +1201,7 @@ $("#mic").onclick = () => interagir();
 $("#assist").onclick = () => { if (estado === "falando") calar(); };
 
 // ================= Palavra de ativação =================
-let porc = null, wvp = null, srWake = null, wakeLigado = false;
+let srWake = null, wakeLigado = false;
 // "Jarvis" sempre interrompe o que estiver acontecendo e já abre o microfone para o próximo pedido
 function aoOuvirPalavra() {
   acordar();
@@ -1214,18 +1210,69 @@ function aoOuvirPalavra() {
   if (!ocupado) interagir(undefined, 0, havia);
   else if (estado === "falando") interagir.reabrir = true;
 }
+// "Ei, Jarvis" com openWakeWord: três modelos ONNX rodando no próprio tablet, sem conta e sem enviar áudio.
+// Mesmo fluxo do openWakeWord original: áudio 16 kHz em blocos de 80 ms -> mel-espectrograma -> embedding -> classificador.
+const OWW = { mel: null, emb: null, kw: null, raw: new Float32Array(0), melBuf: [], feats: [], blocos: 0, ultimo: 0, fila: Promise.resolve(), pendentes: 0 };
+const BLOCO = 1280;
+async function carregarOWW() {
+  ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
+  ort.env.wasm.numThreads = 1;
+  const abrir = f => ort.InferenceSession.create(f, { executionProviders: ["wasm"] });
+  [OWW.mel, OWW.emb, OWW.kw] = await Promise.all(["melspectrogram.onnx", "embedding_model.onnx", "hey_jarvis_v0.1.onnx"].map(abrir));
+  owwZerar();
+}
+function owwZerar() {
+  OWW.raw = new Float32Array(0); OWW.feats = []; OWW.blocos = 0;
+  OWW.melBuf = Array.from({ length: 76 }, () => new Float32Array(32).fill(1));
+}
+// Recebe 1280 amostras (16 kHz, escala de int16) e devolve a pontuação de 0 a 1
+async function owwBloco(bloco) {
+  const juntos = new Float32Array(OWW.raw.length + bloco.length); juntos.set(OWW.raw); juntos.set(bloco, OWW.raw.length);
+  OWW.raw = juntos.slice(-(BLOCO + 480));
+  if (OWW.raw.length < BLOCO + 480) return 0;
+  const m = (await OWW.mel.run({ [OWW.mel.inputNames[0]]: new ort.Tensor("float32", OWW.raw, [1, OWW.raw.length]) }))[OWW.mel.outputNames[0]];
+  const nf = m.dims[m.dims.length - 2];
+  for (let f = 0; f < nf; f++) { const l = new Float32Array(32); for (let k = 0; k < 32; k++) l[k] = m.data[f * 32 + k] / 10 + 2; OWW.melBuf.push(l); }
+  if (OWW.melBuf.length > 120) OWW.melBuf.splice(0, OWW.melBuf.length - 120);
+  const jan = new Float32Array(76 * 32); OWW.melBuf.slice(-76).forEach((l, i) => jan.set(l, i * 32));
+  const e = (await OWW.emb.run({ [OWW.emb.inputNames[0]]: new ort.Tensor("float32", jan, [1, 76, 32, 1]) }))[OWW.emb.outputNames[0]];
+  OWW.feats.push(Float32Array.from(e.data.slice(0, 96)));
+  if (OWW.feats.length > 16) OWW.feats.shift();
+  if (OWW.feats.length < 16 || ++OWW.blocos < 5) return 0;
+  const x = new Float32Array(16 * 96); OWW.feats.forEach((f, i) => x.set(f, i * 96));
+  const s = (await OWW.kw.run({ [OWW.kw.inputNames[0]]: new ort.Tensor("float32", x, [1, 16, 96]) }))[OWW.kw.outputNames[0]];
+  return s.data[0];
+}
+async function escutarOWW() {
+  const c = audioCtx(), src = c.createMediaStreamSource(await mic()), proc = c.createScriptProcessor(4096, 1, 1);
+  const fator = c.sampleRate / 16000; let acum = [], pos = 0;
+  proc.onaudioprocess = ev => {
+    const d = ev.inputBuffer.getChannelData(0);
+    // Reamostra para 16 kHz pela média de cada janela
+    for (; pos < d.length; pos += fator) {
+      const a = Math.floor(pos), b = Math.min(d.length, Math.floor(pos + fator)); let s = 0;
+      for (let j = a; j < b; j++) s += d[j];
+      acum.push(Math.max(-1, Math.min(1, s / Math.max(1, b - a))) * 32767);
+    }
+    pos -= d.length;
+    while (acum.length >= BLOCO) {
+      const bloco = Float32Array.from(acum.splice(0, BLOCO));
+      if (OWW.pendentes > 6) continue; // aparelho lento: descarta para não acumular atraso
+      OWW.pendentes++;
+      OWW.fila = OWW.fila.then(() => owwBloco(bloco)).then(score => {
+        OWW.pendentes--;
+        if (score >= (Number(cfg.sens) || 0.5) && performance.now() - OWW.ultimo > 2500) { OWW.ultimo = performance.now(); owwZerar(); aoOuvirPalavra(); }
+      }).catch(err => { OWW.pendentes--; console.warn("oww", err); });
+    }
+  };
+  src.connect(proc); proc.connect(c.destination);
+}
 async function iniciarWake() {
-  if (cfg.wake === "porcupine") {
-    if (!cfg.picoKey) { $("#dica").textContent = "Toque para falar →"; return; }
+  if (cfg.wake === "oww") {
     try {
-      const { PorcupineWorker, BuiltInKeyword } = window.PorcupineWeb;
-      wvp = window.WebVoiceProcessor.WebVoiceProcessor;
-      porc = await PorcupineWorker.create(cfg.picoKey,
-        [{ builtin: BuiltInKeyword[cfg.palavra] || BuiltInKeyword.Jarvis, sensitivity: Number(cfg.sens) || 0.6 }],
-        aoOuvirPalavra,
-        { publicPath: cfg.picoModel, forceWrite: true });
-      $("#dica").textContent = `Diga "${cfg.palavra}" ou toque →`;
-      await retomarWake();
+      $("#dica").textContent = "Carregando o \"Ei, Jarvis\"…";
+      await carregarOWW(); await escutarOWW();
+      $("#dica").textContent = 'Diga "Ei, Jarvis" ou toque →';
     } catch (e) { console.error(e); toast("A palavra de ativação falhou: " + (e.message || e), 9000); $("#dica").textContent = "Toque para falar →"; }
   } else if (cfg.wake === "navegador") {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1242,7 +1289,7 @@ async function iniciarWake() {
 async function pausarWake() { wakeLigado = false; try { if (srWake) srWake.abort(); } catch {} }
 async function retomarWake() {
   if (wakeLigado) return; wakeLigado = true;
-  try { if (porc && wvp && !retomarWake.inscrito) { await wvp.subscribe(porc); retomarWake.inscrito = true; } if (srWake) srWake.start(); } catch {}
+  try { if (srWake) srWake.start(); } catch {}
 }
 
 // ================= Configurações =================
