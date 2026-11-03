@@ -195,6 +195,35 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
 #inicio p{color:var(--soft);font-weight:600;max-width:440px;line-height:1.5}
 #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:14px;font-size:14px;font-weight:700;display:none;z-index:60;max-width:80vw}
 #btnCfg{font-size:20px;opacity:.45;padding:6px}
+
+/* Telas pequenas (tablet de 10" no Chrome fica com cerca de 960x550 pontos) */
+@media (max-height:700px), (max-width:1100px){
+  #app{padding:8px 10px;gap:8px;grid-template-rows:auto 1fr 56px}
+  #saudacao{font-size:21px}#dataLonga{font-size:12px;margin-top:2px}#hora{font-size:40px}
+  #grade{gap:8px}
+  .card{padding:10px 12px;border-radius:16px}
+  .card h2{font-size:10.5px;margin-bottom:6px;gap:6px}.card h2 .e{font-size:14px}
+  #climaEmoji{font-size:34px}#climaTemp{font-size:30px}#climaDesc{font-size:11.5px}
+  #horas{gap:4px;margin-top:6px}#horas div{font-size:10px;padding:3px 1px;border-radius:9px}#horas div b{font-size:14px}#horas div span{font-size:11px}
+  #climaRodape{font-size:10.5px;gap:3px 8px;padding-top:6px}
+  .refeicao{gap:8px;padding:4px 0}.refeicao .ic{width:30px;height:30px;font-size:18px;border-radius:10px}.refeicao .p{font-size:13.5px}.refeicao .r{font-size:10px}
+  #cardProx{font-size:11px}
+  .ev{gap:6px;padding:4px 0}.ev .h{min-width:38px;font-size:12.5px}.ev .t{font-size:12.5px}.ev .s{font-size:10.5px}.dia{font-size:10px;margin:3px 0 1px}
+  .chip{font-size:11px;padding:3px 8px}
+  #saber p{font-size:12.5px;-webkit-line-clamp:4}#saber .piada{font-size:11.5px;padding:6px 9px;margin-top:6px}#saber .frase{display:none}
+  .timer{padding:6px 10px;margin-bottom:6px;border-radius:12px}.timer .t{font-size:22px}.timer .n{font-size:13px}
+  .abas{margin-bottom:6px;padding:3px;border-radius:11px}.abas button{font-size:11.5px;padding:6px 2px;border-radius:9px}
+  .item{font-size:13.5px;padding:6px 2px;gap:8px}.item .ck{width:19px;height:19px;border-radius:6px;font-size:12px}
+  .add{margin-top:6px}.add input{font-size:13px;padding:6px 9px}.add button{padding:0 12px;font-size:17px}
+  #notas{gap:8px}.nota{font-size:17px;min-height:64px;padding:8px 9px 7px}.nota .de{font-size:9.5px}
+  #barra{padding:4px 6px 4px 10px;border-radius:16px;gap:8px}#radioIc{width:34px;height:34px;font-size:18px}
+  #radioNome{font-size:13.5px}#radioSub{font-size:10.5px}#favs{display:none}#dica{font-size:11px}
+  #mic{width:50px;height:50px;font-size:22px}
+  #assist{bottom:70px;padding:12px 16px;gap:12px}#bola{width:48px;height:48px}#bola i{inset:14px}#resposta{font-size:16px;max-height:120px}
+  #receita{grid-template-columns:240px 1fr;padding:10px;gap:10px}#recTit{font-size:19px}#recPasso{font-size:24px}#recDica{font-size:15px;padding:10px 12px;margin-top:12px}#recNav .pill{font-size:14px;padding:9px 14px}
+  #avisoTx{font-size:34px}#avisoEmoji{font-size:72px}
+  #descHora{font-size:72px}#descData{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -325,7 +354,6 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
 <div id="toast"></div>
 <audio id="radio" preload="none"></audio>
 
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -1470,64 +1498,96 @@ function aoOuvirPalavra() {
 }
 // "Ei, Jarvis" com openWakeWord: três modelos ONNX rodando no próprio tablet, sem conta e sem enviar áudio.
 // Mesmo fluxo do openWakeWord original: áudio 16 kHz em blocos de 80 ms -> mel-espectrograma -> embedding -> classificador.
-const OWW = { mel: null, emb: null, kw: null, raw: new Float32Array(0), melBuf: [], feats: [], blocos: 0, ultimo: 0, fila: Promise.resolve(), pendentes: 0 };
+// A análise roda num Web Worker: em tablets fracos, rodar na mesma linha da tela travava tudo.
+const OWW = { worker: null, pronto: false, ultimo: 0, ocupado: false, processados: 0, descartados: 0, msMedio: 0, desligado: false };
 const BLOCO = 1280;
-async function carregarOWW() {
-  ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
-  ort.env.wasm.numThreads = 1;
-  const abrir = f => ort.InferenceSession.create(f, { executionProviders: ["wasm"] });
-  [OWW.mel, OWW.emb, OWW.kw] = await Promise.all(["melspectrogram.onnx", "embedding_model.onnx", "hey_jarvis_v0.1.onnx"].map(abrir));
-  owwZerar();
-}
-function owwZerar() {
-  OWW.raw = new Float32Array(0); OWW.feats = []; OWW.blocos = 0;
-  OWW.melBuf = Array.from({ length: 76 }, () => new Float32Array(32).fill(1));
-}
-// Recebe 1280 amostras (16 kHz, escala de int16) e devolve a pontuação de 0 a 1
-async function owwBloco(bloco) {
-  const t0 = performance.now();
-  try { return await owwBlocoInterno(bloco); }
-  finally { const ms = performance.now() - t0; OWW.msMedio = OWW.msMedio ? OWW.msMedio * 0.95 + ms * 0.05 : ms; }
-}
-async function owwBlocoInterno(bloco) {
-  const juntos = new Float32Array(OWW.raw.length + bloco.length); juntos.set(OWW.raw); juntos.set(bloco, OWW.raw.length);
-  OWW.raw = juntos.slice(-(BLOCO + 480));
-  if (OWW.raw.length < BLOCO + 480) return 0;
-  const m = (await OWW.mel.run({ [OWW.mel.inputNames[0]]: new ort.Tensor("float32", OWW.raw, [1, OWW.raw.length]) }))[OWW.mel.outputNames[0]];
+const CODIGO_WORKER = `
+importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js");
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/"; ort.env.wasm.numThreads = 1;
+let mel, emb, kw, raw = new Float32Array(0), melBuf = [], feats = [], blocos = 0;
+function zerar() { raw = new Float32Array(0); feats = []; blocos = 0; melBuf = Array.from({ length: 76 }, () => new Float32Array(32).fill(1)); }
+async function analisar(bloco) {
+  const juntos = new Float32Array(raw.length + bloco.length); juntos.set(raw); juntos.set(bloco, raw.length);
+  raw = juntos.slice(-(1280 + 480)); if (raw.length < 1760) return 0;
+  const m = (await mel.run({ [mel.inputNames[0]]: new ort.Tensor("float32", raw, [1, raw.length]) }))[mel.outputNames[0]];
   const nf = m.dims[m.dims.length - 2];
-  for (let f = 0; f < nf; f++) { const l = new Float32Array(32); for (let k = 0; k < 32; k++) l[k] = m.data[f * 32 + k] / 10 + 2; OWW.melBuf.push(l); }
-  if (OWW.melBuf.length > 120) OWW.melBuf.splice(0, OWW.melBuf.length - 120);
-  const jan = new Float32Array(76 * 32); OWW.melBuf.slice(-76).forEach((l, i) => jan.set(l, i * 32));
-  const e = (await OWW.emb.run({ [OWW.emb.inputNames[0]]: new ort.Tensor("float32", jan, [1, 76, 32, 1]) }))[OWW.emb.outputNames[0]];
-  OWW.feats.push(Float32Array.from(e.data.slice(0, 96)));
-  if (OWW.feats.length > 16) OWW.feats.shift();
-  if (OWW.feats.length < 16 || ++OWW.blocos < 5) return 0;
-  const x = new Float32Array(16 * 96); OWW.feats.forEach((f, i) => x.set(f, i * 96));
-  const s = (await OWW.kw.run({ [OWW.kw.inputNames[0]]: new ort.Tensor("float32", x, [1, 16, 96]) }))[OWW.kw.outputNames[0]];
-  return s.data[0];
+  for (let f = 0; f < nf; f++) { const l = new Float32Array(32); for (let k = 0; k < 32; k++) l[k] = m.data[f * 32 + k] / 10 + 2; melBuf.push(l); }
+  if (melBuf.length > 120) melBuf.splice(0, melBuf.length - 120);
+  const jan = new Float32Array(76 * 32); melBuf.slice(-76).forEach((l, i) => jan.set(l, i * 32));
+  const e = (await emb.run({ [emb.inputNames[0]]: new ort.Tensor("float32", jan, [1, 76, 32, 1]) }))[emb.outputNames[0]];
+  feats.push(Float32Array.from(e.data.slice(0, 96))); if (feats.length > 16) feats.shift();
+  if (feats.length < 16 || ++blocos < 5) return 0;
+  const x = new Float32Array(16 * 96); feats.forEach((f, i) => x.set(f, i * 96));
+  return (await kw.run({ [kw.inputNames[0]]: new ort.Tensor("float32", x, [1, 16, 96]) }))[kw.outputNames[0]].data[0];
+}
+onmessage = async e => {
+  const d = e.data;
+  try {
+    if (d.tipo === "carregar") {
+      const abrir = f => ort.InferenceSession.create(d.base + f, { executionProviders: ["wasm"] });
+      [mel, emb, kw] = await Promise.all(["melspectrogram.onnx", "embedding_model.onnx", "hey_jarvis_v0.1.onnx"].map(abrir));
+      zerar(); postMessage({ tipo: "pronto" });
+    } else if (d.tipo === "zerar") zerar();
+    else if (d.tipo === "bloco") { const t0 = performance.now(); const s = await analisar(d.dados); postMessage({ tipo: "score", s, ms: performance.now() - t0 }); }
+  } catch (err) { postMessage({ tipo: "erro", erro: String(err && err.message || err) }); }
+};`;
+function carregarOWW() {
+  return new Promise((ok, erro) => {
+    const w = new Worker(URL.createObjectURL(new Blob([CODIGO_WORKER], { type: "text/javascript" })));
+    OWW.worker = w;
+    const limite = setTimeout(() => erro(new Error("o tablet demorou demais para carregar")), 120000);
+    w.onmessage = e => {
+      const d = e.data;
+      if (d.tipo === "pronto") { clearTimeout(limite); OWW.pronto = true; ok(); }
+      else if (d.tipo === "erro") { if (!OWW.pronto) { clearTimeout(limite); erro(new Error(d.erro)); } else { OWW.ocupado = false; console.warn("oww", d.erro); } }
+      else if (d.tipo === "score") owwResultado(d.s, d.ms);
+    };
+    w.postMessage({ tipo: "carregar", base: new URL(".", location.href).href });
+  });
+}
+function owwZerar() { if (OWW.worker) OWW.worker.postMessage({ tipo: "zerar" }); }
+// Fila de blocos: o detector precisa do áudio contínuo, então só descarta quando a fila passa de ~1 s de atraso
+const owwFila = [];
+function owwEnviar() {
+  if (OWW.ocupado || !OWW.worker || !owwFila.length) return;
+  const bloco = owwFila.shift(); OWW.ocupado = true;
+  OWW.worker.postMessage({ tipo: "bloco", dados: bloco }, [bloco.buffer]);
+}
+function owwResultado(score, ms) {
+  OWW.ocupado = false; owwEnviar(); OWW.score = score; OWW.processados++;
+  OWW.msMedio = OWW.msMedio ? OWW.msMedio * 0.9 + ms * 0.1 : ms;
+  if (score > (OWW.pico || 0)) OWW.pico = score;
+  if (score >= (Number(cfg.sens) || 0.5) && performance.now() - OWW.ultimo > 2500) { OWW.ultimo = performance.now(); owwZerar(); aoOuvirPalavra(); }
+  // Se o aparelho não acompanha o tempo real (cada bloco tem 80 ms de áudio), desliga para não atrapalhar o resto
+  if (OWW.processados === 80 && (OWW.msMedio > 75 || OWW.descartados > 36)) desligarOWW();
+}
+function desligarOWW() {
+  if (OWW.desligado) return; OWW.desligado = true;
+  diag("ei_jarvis_desligado_por_lentidao", { msPorBloco: +OWW.msMedio.toFixed(1), processados: OWW.processados, descartados: OWW.descartados });
+  if (OWW.worker) OWW.worker.terminate(); OWW.worker = null; OWW.pronto = false;
+  $("#dica").textContent = "Toque para falar →";
+  toast('Este tablet é lento para o "Ei, Jarvis". Toque no botão 🎙️ para falar.', 10000);
 }
 async function escutarOWW() {
   const c = audioCtx(), src = c.createMediaStreamSource(await mic()), proc = c.createScriptProcessor(4096, 1, 1);
-  const fator = c.sampleRate / 16000; let acum = [], pos = 0;
+  const fator = c.sampleRate / 16000; let acum = new Float32Array(0), pos = 0;
   proc.onaudioprocess = ev => {
-    const d = ev.inputBuffer.getChannelData(0);
-    // Reamostra para 16 kHz pela média de cada janela
+    if (OWW.desligado) { proc.disconnect(); src.disconnect(); return; }
+    const d = ev.inputBuffer.getChannelData(0), novos = [];
+    // Reamostra para 16 kHz pela média de cada janela (trabalho leve; a análise pesada fica no worker)
     for (; pos < d.length; pos += fator) {
       const a = Math.floor(pos), b = Math.min(d.length, Math.floor(pos + fator)); let s = 0;
       for (let j = a; j < b; j++) s += d[j];
-      acum.push(Math.max(-1, Math.min(1, s / Math.max(1, b - a))) * 32767);
+      novos.push(Math.max(-1, Math.min(1, s / Math.max(1, b - a))) * 32767);
     }
     pos -= d.length;
+    const junto = new Float32Array(acum.length + novos.length); junto.set(acum); junto.set(novos, acum.length); acum = junto;
     while (acum.length >= BLOCO) {
-      const bloco = Float32Array.from(acum.splice(0, BLOCO));
-      if (OWW.pendentes > 6) { OWW.descartados = (OWW.descartados || 0) + 1; continue; } // aparelho lento: descarta para não acumular atraso
-      OWW.pendentes++;
-      OWW.fila = OWW.fila.then(() => owwBloco(bloco)).then(score => {
-        OWW.pendentes--; OWW.score = score; OWW.processados = (OWW.processados || 0) + 1;
-        if (score > (OWW.pico || 0)) OWW.pico = score;
-        if (score >= (Number(cfg.sens) || 0.5) && performance.now() - OWW.ultimo > 2500) { OWW.ultimo = performance.now(); owwZerar(); aoOuvirPalavra(); }
-      }).catch(err => { OWW.pendentes--; console.warn("oww", err); });
+      const bloco = acum.slice(0, BLOCO); acum = acum.slice(BLOCO);
+      if (owwFila.length >= 12) { owwFila.length = 0; OWW.descartados += 12; owwZerar(); } // aparelho atrasou demais: recomeça
+      owwFila.push(bloco);
     }
+    owwEnviar();
   };
   src.connect(proc); proc.connect(c.destination);
 }
@@ -1606,7 +1666,7 @@ $("#micTeste").onclick = async () => {
     const rms = Math.sqrt(s / buf.length); picoVol = Math.max(picoVol * 0.995, rms);
     $("#tVol").style.width = Math.min(100, rms * 400) + "%";
     const sc = OWW.score || 0; $("#tKw").style.width = Math.round(sc * 100) + "%";
-    $("#tScore").textContent = OWW.mel ? `agora ${sc.toFixed(2)} · maior ${(OWW.pico || 0).toFixed(2)} · dispara em ${(Number(cfg.sens) || 0.5).toFixed(2)}` : "(modelo não carregado — toque em Começar)";
+    $("#tScore").textContent = OWW.pronto ? `agora ${sc.toFixed(2)} · maior ${(OWW.pico || 0).toFixed(2)} · dispara em ${(Number(cfg.sens) || 0.5).toFixed(2)}` : (OWW.desligado ? "(desligado: tablet lento — use o botão)" : "(modelo não carregado — toque em Começar)");
     $("#tInfo").innerHTML = `Microfone: <b>${esc(trilha.label || "padrão")}</b> · ${trilha.readyState === "live" ? "ligado" : "desligado"} · ${trilha.muted ? "MUDO pelo sistema" : "ok"}<br>
       Áudio: ${c.sampleRate} Hz · estado ${c.state} · volume máximo recente ${(picoVol * 100).toFixed(1)}%<br>
       "Ei, Jarvis": ${cfg.wake === "oww" ? `${OWW.processados || 0} blocos analisados, ${OWW.descartados || 0} descartados por lentidão` : "desligado nas configurações"}${ajustes.sampleRate ? ` · captura ${ajustes.sampleRate} Hz` : ""}`;
@@ -1729,7 +1789,7 @@ function importarConfig(texto) {
 // ================= Atualização automática =================
 // O GitHub Pages e o app instalado guardam a página em cache; a cada 15 min confere se há versão nova
 // e recarrega sozinho quando ninguém estiver usando.
-const VERSAO = "2026-11-03g";
+const VERSAO = "2026-11-03h";
 let versaoNova = false;
 async function conferirVersao() {
   try {
@@ -1754,7 +1814,7 @@ $("#btnIniciar").onclick = async () => {
   try { await mic(); } catch (e) { micOk = false; avisoMicrofone(e); diag("microfone_negado", { erro: (e.name || "") + " " + (e.message || "") }); }
   diag("inicio", { tela: `${screen.width}x${screen.height}`, versao: VERSAO, wake: cfg.wake, modelo: cfg.modelo, micOk });
   if (!cfg.geminiKey) { abrirCfg(); toast("Configure ou digite o código do PC para começar.", 8000); return; }
-  if (micOk) { sondarAudio(3); await iniciarWake(); }
+  if (micOk) await iniciarWake();
   anunciar(`${periodo()}${cfg.familia ? ", família " + cfg.familia : ""}! Tudo pronto por aqui.`);
 };
 
