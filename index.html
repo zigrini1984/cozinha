@@ -435,7 +435,24 @@ function alarme(on) {
   let n = 0;
   const tocar = () => { alarmeCiclo = performance.now(); som.alarme(); };
   tocar(); alarmeLoop = setInterval(() => { tocar(); if (++n > 40) pararAlarme(); }, CICLO_ALARME * 1000);
-  escutarAlarme();
+  escutarAlarme(); escutarPalavrasParar();
+}
+// Com o alarme tocando, o reconhecimento do Chrome fica ouvindo palavras de parar, sem precisar do "Ei, Jarvis"
+const PALAVRAS_PARAR = /\b(para|pare|parar|parou|chega|desliga|desligar|cancela|cancelar|sil[eê]ncio|pronto|ok|okay|t[aá] bom|j[aá] vi|obrigad[oa]|jarvis|stop)\b/i;
+let srAlarme = null;
+function escutarPalavrasParar() {
+  if (!SRClasse || srAlarme) return;
+  const r = new SRClasse(); r.lang = "pt-BR"; r.continuous = true; r.interimResults = true;
+  r.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const fala = e.results[i][0].transcript;
+      if (PALAVRAS_PARAR.test(fala)) { diag("alarme_parado_por_voz", { fala }); pararAlarme(); som.ok(); toast("Alarme desligado 👍", 2500); return; }
+    }
+  };
+  r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") diag("alarme_reconhecimento_erro", { erro: e.error }); };
+  r.onend = () => { if (srAlarme === r && alarmeLoop) setTimeout(() => { if (srAlarme === r && alarmeLoop) try { r.start(); } catch {} }, 200); };
+  srAlarme = r;
+  try { r.start(); } catch {}
 }
 function pararAlarme() {
   alarme(false); fecharAviso();
@@ -464,7 +481,10 @@ async function escutarAlarme() {
   src.connect(proc); proc.connect(c.destination);
   escutaAlarme = () => { proc.disconnect(); src.disconnect(); };
 }
-function pararEscutaAlarme() { if (escutaAlarme) { escutaAlarme(); escutaAlarme = null; } }
+function pararEscutaAlarme() {
+  if (escutaAlarme) { escutaAlarme(); escutaAlarme = null; }
+  if (srAlarme) { const r = srAlarme; srAlarme = null; try { r.abort(); } catch {} }
+}
 // Encerra tudo o que está acontecendo: alarmes, avisos, fala da assistente e, se pedido, o rádio
 function pararTudo(incluirRadio = false) {
   calar(); fila.length = 0;
@@ -622,31 +642,40 @@ const radio = $("#radio");
 let radioVol = ler("radioVol", 0.8), radioAtual = null;
 const favoritas = () => cfg.favoritas.split("\n").map(l => l.split("|")).filter(p => p.length >= 2 && p[1].trim().startsWith("https")).map(p => ({ nome: p[0].trim(), url: p[1].trim() }));
 function radioDuck(on) { radio.volume = on ? Math.min(radioVol, 0.1) : radioVol; }
+// Formatos que o Chrome toca direto; FLV e HLS (m3u8) ficam de fora
+const CODECS_OK = /^(MP3|AAC\+?|OGG|OPUS)$/i;
+// Devolve até 5 estações candidatas, da mais ouvida para a menos ouvida, priorizando as brasileiras
 async function buscarRadio(nome) {
   const fav = favoritas().find(f => contem(f.nome, nome));
-  if (fav) return { nome: fav.nome, url: fav.url, sub: "Favorita da casa" };
-  for (const srv of ["de1", "fi1", "de2", "nl1", "at1"]) {
+  if (fav) return [{ nome: fav.nome, url: fav.url, sub: "Favorita da casa" }];
+  const boa = s => (s.url_resolved || "").startsWith("https") && CODECS_OK.test(s.codec || "") && !s.hls && s.lastcheckok;
+  for (const srv of ["all", "de1", "de2"]) {
     try {
-      const r = await fetch(`https://${srv}.api.radio-browser.info/json/stations/search?name=${encodeURIComponent(nome)}&limit=25&hidebroken=true&order=clickcount&reverse=true`);
-      if (!r.ok) continue;
-      let lista = (await r.json()).filter(s => (s.url_resolved || "").startsWith("https"));
-      if (!lista.length) {
-        const r2 = await fetch(`https://${srv}.api.radio-browser.info/json/stations/search?tag=${encodeURIComponent(nome)}&countrycode=BR&limit=25&hidebroken=true&order=clickcount&reverse=true`);
-        lista = (await r2.json()).filter(s => (s.url_resolved || "").startsWith("https"));
-      }
+      const base = `https://${srv}.api.radio-browser.info/json/stations/search?limit=40&hidebroken=true&order=clickcount&reverse=true`;
+      let lista = (await (await fetch(`${base}&name=${encodeURIComponent(nome)}`, { signal: AbortSignal.timeout(8000) })).json()).filter(boa);
+      if (!lista.length) lista = (await (await fetch(`${base}&tag=${encodeURIComponent(nome.toLowerCase())}&countrycode=BR`, { signal: AbortSignal.timeout(8000) })).json()).filter(boa);
       lista.sort((a, b) => (b.countrycode === "BR") - (a.countrycode === "BR"));
-      if (!lista.length) return null;
-      const s = lista[0];
-      return { nome: s.name.trim(), url: s.url_resolved, sub: [s.state, s.country].filter(Boolean).join(" · ") };
+      return lista.slice(0, 5).map(s => ({ nome: s.name.trim(), url: s.url_resolved, sub: [s.state, s.country].filter(Boolean).join(" · ") }));
     } catch {}
   }
   throw new Error("serviço de rádios fora do ar");
 }
-async function tocarRadio(st) {
-  radio.src = st.url; radioAtual = st; radio.volume = radioVol;
-  try { await radio.play(); } catch { radioAtual = null; throw new Error("não consegui tocar esse stream"); }
-  $("#radioNome").textContent = st.nome; $("#radioSub").textContent = st.sub || "";
-  $("#barra").classList.add("tocando"); $("#radioBtn").style.display = "";
+// Tenta as estações em ordem até uma começar a tocar de verdade
+async function tocarRadio(candidatas) {
+  const lista = Array.isArray(candidatas) ? candidatas : [candidatas];
+  for (const st of lista) {
+    radio.src = st.url; radio.volume = radioVol;
+    try {
+      await Promise.race([radio.play(), new Promise((_, erro) => setTimeout(() => erro(new Error("demorou")), 9000))]);
+      radioAtual = st;
+      $("#radioNome").textContent = st.nome; $("#radioSub").textContent = st.sub || "";
+      $("#barra").classList.add("tocando"); $("#radioBtn").style.display = "";
+      diag("radio", { tocando: st.nome });
+      return st;
+    } catch (e) { diag("radio_falhou", { estacao: st.nome, erro: String(e.message || e).slice(0, 80) }); }
+  }
+  radio.removeAttribute("src"); radio.load(); radioAtual = null;
+  throw new Error("nenhuma estação tocou");
 }
 function pararRadio() {
   radio.pause(); radio.removeAttribute("src"); radio.load(); radioAtual = null;
@@ -1106,8 +1135,8 @@ async function executar(nome, a) {
       som.aviso(); mostrarAviso(a.emoji || "📣", a.texto);
       setTimeout(() => anunciar(`Atenção, família! ${a.texto}`), 1300); return { ok: true, observacao: "o anúncio será falado logo depois da sua resposta; responda só 'Pronto, avisei.'" };
     case "tocar_radio": {
-      const st = await buscarRadio(a.nome); if (!st) return { erro: "não achei essa rádio com stream seguro" };
-      await tocarRadio(st); return { tocando: st.nome };
+      const lista = await buscarRadio(a.nome); if (!lista.length) return { erro: "não achei essa rádio; sugira outro nome ou estilo" };
+      const st = await tocarRadio(lista); return { tocando: st.nome };
     }
     case "parar_radio": pararRadio(); return { ok: true };
     case "volume_radio": radioVol = Math.max(0, Math.min(1, a.nivel / 100)); gravar("radioVol", radioVol); radio.volume = radioVol; return { volume: a.nivel };
@@ -1600,7 +1629,7 @@ function importarConfig(texto) {
 // ================= Atualização automática =================
 // O GitHub Pages e o app instalado guardam a página em cache; a cada 15 min confere se há versão nova
 // e recarrega sozinho quando ninguém estiver usando.
-const VERSAO = "2026-11-03e";
+const VERSAO = "2026-11-03f";
 let versaoNova = false;
 async function conferirVersao() {
   try {
