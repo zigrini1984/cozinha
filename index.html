@@ -129,7 +129,8 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
 .pill.forte{background:var(--terra);color:#fff}
 #favs{display:flex;gap:6px;overflow:hidden;max-width:420px}
 #mic{width:48px;height:48px;border-radius:50%;background:var(--terra);color:#fff;font-size:22px;box-shadow:0 6px 16px rgba(224,122,95,.4)}
-#dica{font-size:13px;color:var(--soft);font-weight:700;white-space:nowrap}
+#dica{font-size:13px;color:var(--soft);font-weight:700;white-space:nowrap;cursor:pointer}
+body.toque #dica{background:var(--terra-bg);color:#a2452c;font-size:16px;font-weight:800;padding:10px 18px;border-radius:999px}
 
 /* assistente */
 #assist{position:fixed;left:50%;bottom:92px;transform:translate(-50%,30px);width:min(760px,92vw);background:#fff;border-radius:26px;box-shadow:0 20px 60px rgba(58,53,50,.25);padding:18px 22px;display:flex;gap:18px;align-items:center;opacity:0;pointer-events:none;transition:.35s cubic-bezier(.2,.9,.3,1.2);z-index:20}
@@ -223,6 +224,14 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
   #receita{grid-template-columns:240px 1fr;padding:10px;gap:10px}#recTit{font-size:19px}#recPasso{font-size:24px}#recDica{font-size:15px;padding:10px 12px;margin-top:12px}#recNav .pill{font-size:14px;padding:9px 14px}
   #avisoTx{font-size:34px}#avisoEmoji{font-size:72px}
   #descHora{font-size:72px}#descData{font-size:16px}
+}
+/* Tablet em pé: duas colunas com rolagem */
+@media (orientation:portrait) and (max-width:900px){
+  #grade{grid-template-columns:1fr 1fr;grid-template-rows:auto;grid-auto-rows:minmax(170px,auto);overflow-y:auto}
+  #clima{grid-column:1;grid-row:1}#cardapio{grid-column:2;grid-row:1}
+  #hoje{grid-column:1;grid-row:2}#agora{grid-column:2;grid-row:2}
+  #listas{grid-column:1;grid-row:3/5;min-height:360px}#mural{grid-column:2;grid-row:3/5;min-height:360px}
+  #radioTxt{display:none}body.toque #dica{flex:1;text-align:center}
 }
 </style>
 </head>
@@ -371,6 +380,10 @@ const cfg = Object.assign({}, PADRAO, ler("cfg", {}));
 if (cfg.wake === "porcupine") cfg.wake = "oww";
 // O antigo padrão "gemini-flash-latest" vive sobrecarregado; quem não escolheu outro passa para o novo padrão
 if (cfg.modelo === "gemini-flash-latest") cfg.modelo = PADRAO.modelo;
+// No Android o microfone não pode ficar aberto o tempo todo (o reconhecimento do Google recebe silêncio)
+// e tablets simples não dão conta do "Ei, Jarvis" em tempo real: lá o padrão é tocar para falar.
+const ANDROID = /Android/i.test(navigator.userAgent);
+if (ANDROID && cfg.wake === "oww" && !cfg.wakeEscolhido) cfg.wake = "nenhum";
 const membros = () => cfg.membros.split(",").map(s => s.trim()).filter(Boolean);
 
 let timers = ler("timers", []);
@@ -463,7 +476,9 @@ function alarme(on) {
   let n = 0;
   const tocar = () => { alarmeCiclo = performance.now(); som.alarme(); };
   tocar(); alarmeLoop = setInterval(() => { tocar(); if (++n > 40) pararAlarme(); }, CICLO_ALARME * 1000);
-  escutarAlarme(); escutarPalavrasParar();
+  // No Android o microfone fica livre para o reconhecimento do Google ouvir "para"
+  if (ANDROID && !OWW.pronto) soltarMicrofone(); else escutarAlarme();
+  escutarPalavrasParar();
 }
 // Com o alarme tocando, o reconhecimento do Chrome fica ouvindo palavras de parar, sem precisar do "Ei, Jarvis"
 const PALAVRAS_PARAR = /\b(para|pare|parar|parou|chega|desliga|desligar|cancela|cancelar|sil[eê]ncio|pronto|ok|okay|t[aá] bom|j[aá] vi|obrigad[oa]|jarvis|stop)\b/i;
@@ -528,6 +543,10 @@ async function mic() {
   const t = micStream.getAudioTracks()[0];
   if (t) { t.onmute = () => diag("microfone_mudo_pelo_sistema"); t.onunmute = () => diag("microfone_voltou"); t.onended = () => diag("microfone_encerrado"); }
   return micStream;
+}
+
+function soltarMicrofone() {
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
 }
 
 // ================= Diagnóstico remoto =================
@@ -1443,6 +1462,7 @@ async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false
       // Caminho rápido: o Chrome transcreve a fala e o Gemini recebe só texto (áudio direto no Gemini leva 10 s ou mais)
       let usarAudio = !SRClasse || srFalhou, texto = null;
       if (!usarAudio) {
+        if (ANDROID && !OWW.pronto) soltarMicrofone();
         const r = await reconhecerFala(espera);
         diag("reconhecimento", { texto: r.texto, erro: r.erro });
         if (r.erro && !["no-speech", "aborted"].includes(r.erro) && !r.texto) { srFalhou = true; usarAudio = true; }
@@ -1484,6 +1504,7 @@ async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false
   }
 }
 $("#mic").onclick = () => interagir();
+$("#dica").onclick = () => interagir();
 $("#assist").onclick = () => { if (estado === "falando") calar(); };
 
 // ================= Palavra de ativação =================
@@ -1567,6 +1588,8 @@ function desligarOWW() {
   if (OWW.worker) OWW.worker.terminate(); OWW.worker = null; OWW.pronto = false;
   $("#dica").textContent = "Toque para falar →";
   toast('Este tablet é lento para o "Ei, Jarvis". Toque no botão 🎙️ para falar.', 10000);
+  $("#dica").textContent = "🎙️ Toque aqui e fale"; document.body.classList.add("toque");
+  if (ANDROID) soltarMicrofone();
 }
 async function escutarOWW() {
   const c = audioCtx(), src = c.createMediaStreamSource(await mic()), proc = c.createScriptProcessor(4096, 1, 1);
@@ -1614,7 +1637,7 @@ async function iniciarWake() {
     srWake.onend = () => { if (wakeLigado) setTimeout(() => { try { srWake.start(); } catch {} }, 400); };
     $("#dica").textContent = `Diga "${cfg.assistente}" ou toque →`;
     await retomarWake();
-  } else $("#dica").textContent = "Toque para falar →";
+  } else { $("#dica").textContent = "🎙️ Toque aqui e fale"; document.body.classList.add("toque"); }
 }
 // A palavra continua ativa enquanto a assistente fala, para dar para interromper dizendo "Jarvis"
 async function pausarWake() { wakeLigado = false; try { if (srWake) srWake.abort(); } catch {} }
@@ -1629,7 +1652,9 @@ function abrirCfg() { carregarVozes(); for (const k of CAMPOS) { const el = $("#
 $("#btnCfg").onclick = abrirCfg;
 $("#cfgFechar").onclick = () => $("#cfg").classList.remove("on");
 $("#cfgSalvar").onclick = () => {
+  const wakeAntes = cfg.wake;
   for (const k of CAMPOS) { const el = $("#c_" + k); if (el) cfg[k] = typeof PADRAO[k] === "number" ? Number(el.value) : el.value.trim(); }
+  if (cfg.wake !== wakeAntes) cfg.wakeEscolhido = true; // escolha manual vale mesmo no Android
   gravar("cfg", cfg); location.reload();
 };
 $("#cfgGeo").onclick = () => navigator.geolocation.getCurrentPosition(p => { $("#c_lat").value = p.coords.latitude.toFixed(4); $("#c_lon").value = p.coords.longitude.toFixed(4); }, () => toast("Não consegui ler a localização."));
@@ -1789,7 +1814,7 @@ function importarConfig(texto) {
 // ================= Atualização automática =================
 // O GitHub Pages e o app instalado guardam a página em cache; a cada 15 min confere se há versão nova
 // e recarrega sozinho quando ninguém estiver usando.
-const VERSAO = "2026-11-03h";
+const VERSAO = "2026-11-03i";
 let versaoNova = false;
 async function conferirVersao() {
   try {
@@ -1814,6 +1839,8 @@ $("#btnIniciar").onclick = async () => {
   try { await mic(); } catch (e) { micOk = false; avisoMicrofone(e); diag("microfone_negado", { erro: (e.name || "") + " " + (e.message || "") }); }
   diag("inicio", { tela: `${screen.width}x${screen.height}`, versao: VERSAO, wake: cfg.wake, modelo: cfg.modelo, micOk });
   if (!cfg.geminiKey) { abrirCfg(); toast("Configure ou digite o código do PC para começar.", 8000); return; }
+  // Sem "Ei, Jarvis", o microfone fica livre para o reconhecimento de voz do Google
+  if (cfg.wake !== "oww") soltarMicrofone();
   if (micOk) await iniciarWake();
   anunciar(`${periodo()}${cfg.familia ? ", família " + cfg.familia : ""}! Tudo pronto por aqui.`);
 };
