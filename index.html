@@ -313,7 +313,7 @@ body.noite #app{filter:brightness(.55) saturate(.8)}
     <label style="grid-column:span 3">Rádios favoritas (Nome|https://url, uma por linha)<textarea id="c_favoritas" rows="3"></textarea></label>
   </div>
   <div class="acoes"><button class="pill forte" id="cfgSalvar">Salvar e reiniciar</button><button class="pill" id="cfgFechar">Fechar</button><button class="pill" id="cfgGeo">📍 Usar minha localização</button><button class="pill" id="cfgTeste">🔊 Testar voz</button></div>
-  <div class="acoes" style="margin-top:12px;align-items:center"><button class="pill" id="qrMostrar">💻 Configurei no PC: mostrar QR para o tablet</button><button class="pill" id="qrLer">📷 Ler QR do computador</button></div>
+  <div class="acoes" style="margin-top:12px;align-items:center"><b style="font-size:14px;color:var(--soft)">Passar do PC para o tablet:</b><button class="pill forte" id="codGerar">💻 No PC: gerar código</button><button class="pill forte" id="codDigitar">📱 No tablet: digitar código</button><button class="pill" id="qrMostrar">Mostrar QR</button><button class="pill" id="qrLer">Ler QR</button></div>
 </div>
 <div id="qrBox" style="position:fixed;inset:0;z-index:45;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px;overflow:auto">
   <div id="qrTitulo" style="font-size:24px;font-weight:800"></div>
@@ -1371,6 +1371,38 @@ $("#qrLer").onclick = async () => {
     };
     procurar();
   } catch (e) { toast("Não consegui abrir a câmera: " + (e.message || e)); }
+};
+// Código de pareamento: o PC guarda a configuração no Apps Script por 15 minutos sob um código de 8 letras;
+// o tablet, ainda sem token, busca uma única vez com esse código. Serve quando a câmera está atrás da moldura.
+const SCRIPT_PAREAR = "https://script.google.com/macros/s/AKfycby6NluMnCP_nu0DMyU-zzN2VUBZi_4Eq2sAIf76yPnxQ_GCCUcRZRk4_CLnr0SYWlkaUQ/exec";
+$("#codGerar").onclick = async () => {
+  const c = lerFormulario();
+  if (!c.geminiKey || !c.scriptUrl || !c.scriptToken) { toast("Preencha a chave do Gemini, a URL e o token do Apps Script antes."); return; }
+  const dados = {}; for (const k of CAMPOS) if (c[k] !== PADRAO[k]) dados[k] = c[k];
+  gravar("cfg", Object.assign(cfg, c));
+  abrirQr("Gerando código…", "");
+  try {
+    const r = await fetch(c.scriptUrl, { method: "POST", body: JSON.stringify({ token: c.scriptToken, acao: "parear", cfg: dados }) });
+    const j = await r.json(); if (!j.codigo) throw new Error(j.erro || "o Apps Script não respondeu");
+    abrirQr("Digite este código no tablet", "No tablet: engrenagem ⚙️ → \"📱 No tablet: digitar código\". Vale por 15 minutos e só funciona uma vez.");
+    $("#qrArea").innerHTML = `<div style="font-size:clamp(40px,9vw,88px);font-weight:800;letter-spacing:.12em;color:var(--ink);padding:10px 24px;font-variant-numeric:tabular-nums">${j.codigo.slice(0, 4)}-${j.codigo.slice(4)}</div>`;
+  } catch (e) { fecharQr(); toast("Não consegui gerar o código: " + e.message, 8000); }
+};
+$("#codDigitar").onclick = () => {
+  abrirQr("Digite o código que aparece no PC", "São 8 letras e números, por exemplo K7M2-Q9XP.");
+  $("#qrArea").innerHTML = `<form id="codForm" autocomplete="off" style="display:flex;flex-direction:column;gap:12px;align-items:center"><input id="codTx" maxlength="12" autocapitalize="characters" style="font-size:40px;font-weight:800;letter-spacing:.12em;text-align:center;width:min(420px,80vw);border:3px solid var(--line);border-radius:14px;padding:10px;text-transform:uppercase;font-family:inherit"><button class="pill forte" style="font-size:18px;padding:12px 30px">Receber configuração</button><div id="codErro" style="color:var(--terra);font-weight:700;min-height:20px"></div></form>`;
+  $("#codTx").focus();
+  $("#codForm").onsubmit = async e => {
+    e.preventDefault();
+    const codigo = $("#codTx").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (codigo.length !== 8) { $("#codErro").textContent = "O código tem 8 letras e números."; return; }
+    $("#codErro").textContent = "Buscando…";
+    try {
+      const j = await (await fetch(`${SCRIPT_PAREAR}?acao=parear&codigo=${codigo}`)).json();
+      if (!j.cfg) { $("#codErro").textContent = "Código inválido ou expirado. Gere outro no PC."; return; }
+      importarConfig(JSON.stringify({ cozinha: 1, cfg: j.cfg }));
+    } catch (err) { $("#codErro").textContent = "Sem conexão. Confira o Wi-Fi do tablet."; }
+  };
 };
 function importarConfig(texto) {
   let j; try { j = JSON.parse(texto); } catch { return false; }
