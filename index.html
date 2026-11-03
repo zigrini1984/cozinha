@@ -1284,6 +1284,98 @@ function mostrarAssist(e, disse, resp) {
 }
 function esconderAssist(ms) { clearTimeout(esconderAssist._t); esconderAssist._t = setTimeout(() => { if (estado === "ocioso") $("#assist").classList.remove("on"); }, ms); }
 
+// ================= Comandos locais (instantâneos, sem Gemini) =================
+// Os pedidos do dia a dia na cozinha são resolvidos aqui mesmo; só o que não for reconhecido vai para o Gemini.
+const NUMEROS = { um: 1, uma: 1, dois: 2, duas: 2, "três": 3, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, noventa: 90, cem: 100, meia: 0.5, meio: 0.5 };
+const RX_NUM = "(\\d+(?:[.,]\\d+)?|(?:" + Object.keys(NUMEROS).join("|") + ")(?:\\s+e\\s+(?:" + Object.keys(NUMEROS).join("|") + "))?)";
+function numero(s) {
+  s = String(s).trim().toLowerCase();
+  if (/^\d/.test(s)) return parseFloat(s.replace(",", "."));
+  return s.split(/\s+e\s+/).reduce((t, p) => t + (NUMEROS[p] || 0), 0);
+}
+// "10 minutos", "meia hora", "uma hora e meia", "1 minuto e 30 segundos" -> segundos
+function duracao(t) {
+  let seg = 0, achou = false;
+  if (/\bmeia hora\b/.test(t)) { seg += 1800; achou = true; t = t.replace(/\bmeia hora\b/, ""); }
+  const rx = new RegExp(RX_NUM + "\\s*(horas?|h\\b|minutos?|min\\b|segundos?|seg\\b)", "g");
+  let m; while ((m = rx.exec(t))) { achou = true; const n = numero(m[1]), u = m[2]; seg += n * (/^h/.test(u) ? 3600 : /^min/.test(u) ? 60 : 1); }
+  if (/\bhoras?\s+e\s+meia\b/.test(t)) seg += 1800;
+  return achou ? Math.round(seg) : 0;
+}
+async function comandoLocal(texto) {
+  const t = texto.toLowerCase().normalize("NFC").replace(/[.!?]+$/g, "").replace(/^(ei,?\s*)?(jarvis|j[aá]rvis)[,\s]*/i, "").trim();
+  if (!t) return null;
+  // Navegação da receita aberta
+  if (receita) {
+    if (/^(pr[oó]ximo|pr[oó]xima|avan[cç]a|seguinte|e agora|pr[oó]ximo passo)\b/.test(t)) { const p = moverReceita(1); return `Passo ${receita.passo + 1}. ${p}`; }
+    if (/^(volta|voltar|anterior|passo anterior)\b/.test(t)) { const p = moverReceita(-1); return `Passo ${receita.passo + 1}. ${p}`; }
+    if (/^(repete|repetir|de novo|fala de novo)\b/.test(t)) return `Passo ${receita.passo + 1}. ${receita.passos[receita.passo]}`;
+    if (/^(fecha|fechar|sai) (a )?receita\b/.test(t)) { fecharReceita(); return "Receita fechada."; }
+  }
+  // Parar
+  if (/^(para|pare|parar|chega|desliga|sil[eê]ncio|cancela|j[aá] vi|ok|pronto|obrigad[oa])( tudo| o alarme| alarme)?$/.test(t) || /^para tudo\b/.test(t)) {
+    pararTudo(/tudo/.test(t)); return "";
+  }
+  if (/\b(para|pare|desliga|pausa|tira)\b.*\b(r[aá]dio|m[uú]sica|som)\b/.test(t)) { pararRadio(); return ""; }
+  // Volume
+  let m = t.match(/volume\D*(\d{1,3})/);
+  if (m) { radioVol = Math.max(0, Math.min(1, +m[1] / 100)); gravar("radioVol", radioVol); radio.volume = radioVol; return `Volume em ${m[1]}.`; }
+  if (/\b(aumenta|sobe|mais alto)\b.*\b(volume|som|r[aá]dio)?/.test(t) && /volume|som|r[aá]dio|alto/.test(t)) { radioVol = Math.min(1, radioVol + 0.2); gravar("radioVol", radioVol); radio.volume = radioVol; return "Aumentei."; }
+  if (/\b(abaixa|diminui|baixa|mais baixo)\b/.test(t) && /volume|som|r[aá]dio|baixo/.test(t)) { radioVol = Math.max(0.05, radioVol - 0.2); gravar("radioVol", radioVol); radio.volume = radioVol; return "Abaixei."; }
+  // Rádio
+  m = t.match(/\b(toca|toque|coloca|coloque|liga|ligue|bota|p[õo]e)\b.*?\b(r[aá]dio|m[uú]sica|esta[cç][aã]o)\b\s*(.*)$/);
+  if (m) {
+    const nome = m[3].replace(/^(a|o|de|da|do|uma|um|com|que toque)\s+/g, "").replace(/^(de|da|do)\s+/, "").trim() || "mpb";
+    const lista = await buscarRadio(nome);
+    if (!lista.length) return `Não achei a rádio ${nome}. Tente outro nome.`;
+    try { const st = await tocarRadio(lista); return `Tocando ${st.nome}.`; } catch { return `Não consegui tocar a rádio ${nome} agora.`; }
+  }
+  // Timers
+  if (/\b(cancela|cancelar|apaga|apagar|tira|desliga|para)\b.*\b(timer|tempo|cron[oô]metro)/.test(t)) {
+    const n = (t.match(/(?:timer|cron[oô]metro)\s+(?:d[oa]s?\s+)?(.+)$/) || [])[1];
+    const antes = timers.length;
+    timers = n && !/todos/.test(n) ? timers.filter(x => !contem(x.nome, n)) : (/todos/.test(t) || timers.length === 1 ? [] : timers);
+    if (!timers.some(x => x.tocando)) alarme(false); gravar("timers", timers); renderTimers();
+    return antes > timers.length ? "Timer cancelado." : (antes ? "Qual timer? Diga o nome, por exemplo: cancela o timer do arroz." : "Não tem timer ativo.");
+  }
+  if (/quanto (tempo )?falta/.test(t)) {
+    if (!timers.length) return "Não tem timer ativo.";
+    return timers.map(x => `${x.nome}: faltam ${falarDuracao((x.fim - Date.now()) / 1000)}`).join(". ") + ".";
+  }
+  if (/\b(timer|cron[oô]metro|me avisa|me avise|me chama|despertador)\b|\bmarca\b.*\b(minutos?|horas?)\b/.test(t)) {
+    const seg = duracao(t);
+    if (seg > 0) {
+      // Nome = o que vem depois do último "para/pro/do/da" ("timer de 10 minutos pro arroz" -> arroz)
+      const mn = t.match(/.*\b(?:para|pro|pra|do|da|dos|das)\s+(?:(?:o|a|os|as)\s+)?([a-zà-ú ]{2,30})$/);
+      let nome = mn ? mn[1].trim() : "timer";
+      if (new RegExp("\\b" + RX_NUM + "\\b").test(nome) || /minutos?|horas?|segundos?/.test(nome)) nome = "timer";
+      const tm = criarTimer(nome, seg); return `Pronto: ${nome === "timer" ? "timer" : nome}, ${falarDuracao(seg)}. Toca às ${fmtHora(new Date(tm.fim))}.`;
+    }
+  }
+  // Horas, data e tempo
+  if (/\bque horas\b|\bhoras s[aã]o\b/.test(t)) return `São ${fmtHora(new Date())}.`;
+  if (/\b(que dia|qual (a )?data|dia [eé] hoje)\b/.test(t)) return `Hoje é ${new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}.`;
+  if (/\b(clima|temperatura|previs[aã]o|vai chover|chuva|calor|frio)\b|\bcomo (est[aá]|t[aá]) o tempo\b/.test(t) && clima) {
+    const c = clima.current, d = clima.daily, amanha = /amanh[aã]/.test(t), i = amanha ? 1 : 0;
+    if (amanha) return `Amanhã: ${wmo(d.weather_code[1])[1].toLowerCase()}, máxima de ${Math.round(d.temperature_2m_max[1])} e mínima de ${Math.round(d.temperature_2m_min[1])} graus, ${d.precipitation_probability_max[1]}% de chance de chuva.`;
+    return `Agora faz ${Math.round(c.temperature_2m)} graus, ${wmo(c.weather_code, c.is_day)[1].toLowerCase()}. Hoje a máxima é ${Math.round(d.temperature_2m_max[i])} e a chance de chuva é de ${d.precipitation_probability_max[i]}%.`;
+  }
+  // Lista de compras
+  m = t.match(/^(?:coloca|coloque|adiciona|adicione|bota|p[õo]e|inclui|anota)\s+(.+?)\s+na lista(?: de compras)?$/);
+  if (m) {
+    const itens = m[1].split(/\s*,\s*|\s+e\s+/).map(s => s.replace(/^(o|a|os|as|um|uma)\s+/, "").trim()).filter(Boolean);
+    await alterar("compras", l => l.concat(itens.filter(it => !l.some(x => !x.comprado && contem(x.item, it))).map(it => ({ id: novoId(), item: it, comprado: false, quem: "", quando: new Date().toISOString() }))));
+    mostrarAba("compras"); return `Anotei ${itens.join(", ")}.`;
+  }
+  if (/^(mostra|abre) (as )?fotos\b/.test(t)) { setTimeout(() => { ultimaAtividade = 0; verificarDescanso(); }, 2500); return "Abrindo as fotos."; }
+  return null;
+}
+function falarDuracao(s) {
+  s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60, p = [];
+  if (h) p.push(h + (h > 1 ? " horas" : " hora")); if (m) p.push(m + (m > 1 ? " minutos" : " minuto")); if (ss && !h) p.push(ss + (ss > 1 ? " segundos" : " segundo"));
+  return p.join(" e ") || "zero segundos";
+}
+
 // Reconhecimento de fala do próprio Chrome (rápido, em português). Devolve { texto, erro }.
 const SRClasse = window.SpeechRecognition || window.webkitSpeechRecognition;
 let srFalhou = false;
@@ -1340,7 +1432,15 @@ async function interagir(textoDigitado, seguimento = 0, interrompeuAntes = false
         mostrarAssist("pensando", `"${texto}"`, "");
       }
     }
-    resp = await conversar(partes);
+    // Comandos do dia a dia respondem na hora; o resto vai para o Gemini
+    const pedido = partes.length === 1 && partes[0].text ? partes[0].text : null;
+    let local = null;
+    if (pedido) { try { local = await comandoLocal(pedido); } catch (e) { diag("comando_local_erro", { erro: String(e.message || e) }); } }
+    if (local !== null) {
+      diag("comando_local", { texto: pedido });
+      resp = local;
+      historico.push({ role: "user", parts: [{ text: pedido }] }, { role: "model", parts: [{ text: local || "Pronto." }] }); aparar();
+    } else resp = await conversar(partes);
     if (!resp) { som.ok(); return; }
     mostrarAssist("falando", undefined, resp);
     await falar(resp);
@@ -1629,7 +1729,7 @@ function importarConfig(texto) {
 // ================= Atualização automática =================
 // O GitHub Pages e o app instalado guardam a página em cache; a cada 15 min confere se há versão nova
 // e recarrega sozinho quando ninguém estiver usando.
-const VERSAO = "2026-11-03f";
+const VERSAO = "2026-11-03g";
 let versaoNova = false;
 async function conferirVersao() {
   try {
